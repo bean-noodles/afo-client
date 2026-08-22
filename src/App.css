@@ -549,7 +549,9 @@
      TaskGraph.tsx — a CSS transition on it here would fight that JS-driven
      animation frame-by-frame (observed as the collapse/expand snapping
      instead of easing). */
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .task-node.is-selected {
@@ -920,7 +922,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 21px 21px 10px;
+  padding: 20px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
