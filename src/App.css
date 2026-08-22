@@ -126,6 +126,13 @@
   opacity: 1;
 }
 
+/* one fixed box for both brand actions so 검색/접기 buttons match exactly */
+.sidebar__brand-actions .sidebar__icon-btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+}
+
 .sidebar__search {
   width: 100%;
   margin-bottom: 12px;

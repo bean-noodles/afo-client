@@ -409,7 +409,7 @@ function App() {
                 onClick={toggleSearch}
                 aria-label="검색"
               >
-                <img src={searchIcon} alt="" width={22} height={22} />
+                <img src={searchIcon} alt="" width={16} height={16} />
               </button>
               <button
                 className="sidebar__icon-btn"
