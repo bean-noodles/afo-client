@@ -594,6 +594,14 @@
   background: rgba(255, 255, 255, 0.12);
 }
 
+/* mirrors the card's own column gap so wrapping the sections (for their
+   fade in/out) doesn't change the spacing they had as direct children */
+.task-node__sections {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .task-node__section {
   display: flex;
   flex-direction: column;
@@ -641,6 +649,12 @@
   align-items: center;
   gap: 8px;
   margin-top: auto;
+}
+
+/* Collapsed cards drop the 설명/출력 sections, so the auto margin would show
+   as a hole between the divider and the progress bar. */
+.task-node.is-collapsed .task-node__progress-row {
+  margin-top: 0;
 }
 
 .task-node__track {

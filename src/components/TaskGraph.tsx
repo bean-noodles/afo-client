@@ -43,7 +43,9 @@ const outputTextOf = (t: Task) => t.output ?? "아직 출력이 없습니다.";
 const COLUMN_WIDTH = 328;
 const NODE_WIDTH = 304;
 const NODE_HEIGHT = 292;
-const COLLAPSED_NODE_HEIGHT = 140;
+/* header + title + divider + progress row, 17px padding top and bottom —
+   sized so a collapsed card ends right under its progress row. */
+const COLLAPSED_NODE_HEIGHT = 120;
 const V_GAP = 32;
 const WAVE_PAD = 13;
 const WAVE_LABEL_H = 22;
@@ -349,7 +351,9 @@ export function TaskGraph({
     (n) => n.rowIndex < activeRow || isCurrentRowStageAtLeast("edge")
   );
   const visibleWaves = waves.filter(
-    (w) => w.waveNumber - 1 < activeRow || isCurrentRowStageAtLeast("edge")
+    (w) =>
+      w.waveNumber - 1 < activeRow ||
+      (w.waveNumber - 1 === activeRow && isCurrentRowStageAtLeast("edge"))
   );
   const visibleNodes = layoutNodes.filter(
     (n) => n.rowIndex < activeRow || revealStage === "node"
@@ -465,7 +469,7 @@ export function TaskGraph({
             type="button"
             className={`task-node status-${n.status}${
               n.id === selectedId ? " is-selected" : ""
-            }`}
+            }${isCollapsed ? " is-collapsed" : ""}`}
             layout
             // Only opacity animates on mount — a manual `y` tween here would
             // fight the `layout` projection for control of `transform` and
@@ -498,8 +502,23 @@ export function TaskGraph({
 
             <motion.div layout className="task-node__divider" />
 
+            {/* The text fades in on expand — easeIn keeps it near-invisible
+                while the box is still small, so it never shows mid-scale.
+                On collapse it unmounts outright instead of fading out: an
+                exit animation (AnimatePresence) interrupted by a quick
+                re-toggle left the text stuck at opacity 0 on this
+                framer-motion version, and the shrinking box covers the
+                removal anyway. */}
             {!isCollapsed && (
-              <>
+              <motion.div
+                layout
+                className="task-node__sections"
+                initial={{ opacity: 0 }}
+                animate={{
+                  opacity: 1,
+                  transition: { duration: 0.35, ease: "easeIn" },
+                }}
+              >
                 <motion.div layout className="task-node__section">
                   <span className="task-node__label">설명</span>
                   <p className="task-node__text task-node__text--desc">
@@ -513,7 +532,7 @@ export function TaskGraph({
                     {shownOutput}
                   </p>
                 </motion.div>
-              </>
+              </motion.div>
             )}
 
             <motion.div layout className="task-node__progress-row">
