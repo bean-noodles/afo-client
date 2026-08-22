@@ -137,7 +137,9 @@ function App() {
   const squadFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const isDemo = !IS_API_CONFIGURED;
-  const isAuthenticated = isDemo || Boolean(token);
+  // Login is mandatory even in demo mode — the main screen never renders
+  // without a token.
+  const isAuthenticated = Boolean(token);
 
   useEffect(() => {
     if (isDemo) return;
@@ -349,6 +351,31 @@ function App() {
           setToken(newToken);
         }}
       />
+    );
+  }
+
+  // A stored token isn't proof of login — hold the main screen until the
+  // server confirms who it belongs to (a 401 bounces to logout above).
+  if (!isDemo && !user) {
+    return (
+      <div className="auth-gate">
+        {meQuery.isError ? (
+          <>
+            <p className="auth-gate__error">
+              로그인 확인에 실패했습니다: {meQuery.error.message}
+            </p>
+            <button
+              type="button"
+              className="auth-gate__retry"
+              onClick={handleLogout}
+            >
+              다시 로그인
+            </button>
+          </>
+        ) : (
+          <span className="auth-gate__spinner" aria-label="로그인 확인 중" />
+        )}
+      </div>
     );
   }
 
