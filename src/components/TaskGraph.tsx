@@ -363,9 +363,12 @@ export function TaskGraph({
             background: w.tint.bg,
           }}
         >
-          <span className="wave-box__label" style={{ color: w.tint.label }}>
+          {/* Needs its own `layout` for the same reason the task-node's
+              children do: without it, the label visibly distorts while the
+              wave box's own FLIP transform is resolving. */}
+          <motion.span layout className="wave-box__label" style={{ color: w.tint.label }}>
             Wave {w.waveNumber}
-          </span>
+          </motion.span>
         </motion.div>
       ))}
 
