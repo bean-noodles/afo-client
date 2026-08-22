@@ -11,7 +11,6 @@ interface LogEntry {
   id: string;
   time: string;
   agentName: string;
-  icon: string;
   text: string;
 }
 
@@ -46,7 +45,6 @@ function buildLogs(): LogEntry[] {
         sortKey: task.startedAt,
         time: task.startedAt,
         agentName: task.assignedToName,
-        icon: task.assignedToIcon,
         text: `'${task.title}' 작업을 시작했습니다.`,
       });
     }
@@ -56,7 +54,6 @@ function buildLogs(): LogEntry[] {
         sortKey: task.completedAt,
         time: task.completedAt,
         agentName: task.assignedToName,
-        icon: task.assignedToIcon,
         text: `'${task.title}' 작업을 완료했습니다.`,
       });
     }
@@ -73,7 +70,6 @@ function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [draft, setDraft] = useState("");
   const logs = useMemo(buildLogs, []);
-  const memberCount = new Set(tasks.map((t) => t.assignedToName)).size + 1;
 
   const startChat = () => {
     if (!draft.trim()) return;
@@ -173,7 +169,6 @@ function App() {
       {activeChat && (
         <AgentsTaskforcePanel
           logs={logs}
-          memberCount={memberCount}
           collapsed={!panelOpen}
           onToggle={() => setPanelOpen((v) => !v)}
         />

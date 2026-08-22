@@ -207,7 +207,6 @@
 }
 
 .chat-msg {
-  position: relative;
   max-width: 70%;
   padding: 12px 18px;
   border-radius: 18px;
@@ -215,37 +214,16 @@
   line-height: 1.5;
 }
 
-/* speech tail */
-.chat-msg::after {
-  content: "";
-  position: absolute;
-  bottom: 7px;
-  width: 0;
-  height: 0;
-}
-
 .chat-msg--user {
   background: #1c3f46;
   color: #e8f4f6;
-  border-bottom-right-radius: 6px;
-}
-
-.chat-msg--user::after {
-  right: -8px;
-  border-top: 11px solid #1c3f46;
-  border-right: 10px solid transparent;
+  border-top-right-radius: 6px;
 }
 
 .chat-msg--agent {
   background: #1c1c1f;
   color: #e8e6ef;
-  border-bottom-left-radius: 6px;
-}
-
-.chat-msg--agent::after {
-  left: -8px;
-  border-top: 11px solid #1c1c1f;
-  border-left: 10px solid transparent;
+  border-top-left-radius: 6px;
 }
 
 /* ---------- Empty chat (new chat) ---------- */
@@ -304,6 +282,10 @@
 
 .app.is-sidebar-collapsed .main {
   padding-left: 68px;
+}
+
+.app:has(.taskforce-panel) .main {
+  padding-right: 388px;
 }
 
 /* ---------- Task graph ---------- */
@@ -497,83 +479,75 @@
   white-space: nowrap;
 }
 
-/* ---------- Chat log ---------- */
+/* ---------- System log entries ---------- */
 
-.chat-bubble {
+.log-entry {
+  background: #161616;
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.log-entry__meta {
   display: flex;
+  align-items: baseline;
   gap: 8px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 14px;
-  padding: 10px 12px;
-}
-
-.chat-bubble__icon {
-  font-size: 18px;
-}
-
-.chat-bubble__content {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.chat-bubble__name {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   font-size: 12px;
-  font-weight: 700;
-  color: #c084fc;
+  margin-bottom: 6px;
 }
 
-.chat-bubble__text {
+.log-entry__time {
+  color: #6b6b6b;
+}
+
+.log-entry__name {
+  color: #9a9a9a;
+}
+
+.log-entry__text {
+  margin: 0;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   font-size: 13px;
-  color: #e8e6ef;
-  line-height: 1.4;
+  color: #e5e5e5;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
-/* ---------- Floating Agents Taskforce panel ---------- */
+/* ---------- System Log sidebar ---------- */
 
 .taskforce-panel {
   position: fixed;
+  top: 24px;
   right: 24px;
   bottom: 24px;
   width: 340px;
-  max-height: 60vh;
   display: flex;
   flex-direction: column;
   border-radius: 18px;
-  background: #171320;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #0a0a0a;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.6);
   z-index: 40;
   overflow: hidden;
 }
 
-.taskforce-panel__header {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 14px 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+.taskforce-panel.is-collapsed {
+  bottom: auto;
 }
 
-.taskforce-panel__heading {
-  display: inline-flex;
+.taskforce-panel__header {
+  display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: space-between;
+  padding: 16px 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .taskforce-panel__title {
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 700;
-}
-
-.taskforce-panel__count {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: #a49cc4;
+  color: #f5f5f5;
 }
 
 .taskforce-panel.is-collapsed .taskforce-panel__header {
@@ -581,21 +555,18 @@
 }
 
 .taskforce-panel__toggle {
-  position: absolute;
-  right: 16px;
-  top: 50%;
-  transform: translateY(-50%);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
   border-radius: 6px;
   border: none;
   background: rgba(255, 255, 255, 0.06);
-  color: #cfcbd9;
+  color: #cfcfcf;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 16px;
+  line-height: 1;
 }
 
 .taskforce-panel__toggle:hover {
@@ -603,7 +574,7 @@
 }
 
 .taskforce-panel__body {
-  padding: 14px 16px;
+  padding: 14px;
   display: flex;
   flex-direction: column;
   gap: 10px;
