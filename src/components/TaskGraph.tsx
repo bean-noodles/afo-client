@@ -29,6 +29,15 @@ const COLLAPSE_TRANSITION = { duration: 0.45, ease: [0.4, 0, 0.2, 1] as const };
  */
 type WavePhase = "typing" | "hold";
 
+/**
+ * How the *next* wave enters once the current one collapses: the previous
+ * row's collapse finishes first, only then does the connecting line draw in,
+ * only then does the new wave's node itself appear — never overlapping.
+ */
+type RevealStage = "collapse" | "edge" | "node";
+/** Total time a connecting line takes to draw in full (branch, then stem). */
+const EDGE_TOTAL_S = EDGE_DRAW_S * 2;
+
 const outputTextOf = (t: Task) => t.output ?? "아직 출력이 없습니다.";
 
 const COLUMN_WIDTH = 328;
@@ -200,7 +209,11 @@ export function TaskGraph({
   // Nodes the user manually clicked open/closed, overriding the auto state —
   // this is what lets a finished, auto-collapsed node be reopened by hand.
   const [manualOverrides, setManualOverrides] = useState<Set<string>>(new Set());
-  const activeNodeRef = useRef<HTMLButtonElement | null>(null);
+  // How far into revealing the *current* row we are — see RevealStage above.
+  // Row 0 has nothing behind it to collapse or connect to, so it starts
+  // straight at "node".
+  const [revealStage, setRevealStage] = useState<RevealStage>("node");
+  const anchorRef = useRef<HTMLDivElement | null>(null);
 
   const finished = activeRow >= rowCount;
 
@@ -253,9 +266,34 @@ export function TaskGraph({
     return () => clearTimeout(id);
   }, [finished, phase, activeRow, tasks, rowIndexById]);
 
-  // Follow the run: scroll the newly active wave into view as it opens.
+  // Choreograph the new row's entrance: wait for the previous row's collapse
+  // to finish, then draw the connecting line in, then reveal the node itself.
+  // Row 0 has no previous row to wait on, so it skips straight to "node".
   useEffect(() => {
-    activeNodeRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (activeRow === 0) {
+      setRevealStage("node");
+      return;
+    }
+    setRevealStage("collapse");
+    const toEdge = setTimeout(
+      () => setRevealStage("edge"),
+      COLLAPSE_TRANSITION.duration * 1000
+    );
+    const toNode = setTimeout(
+      () => setRevealStage("node"),
+      (COLLAPSE_TRANSITION.duration + EDGE_TOTAL_S) * 1000
+    );
+    return () => {
+      clearTimeout(toEdge);
+      clearTimeout(toNode);
+    };
+  }, [activeRow]);
+
+  // Follow the run: scroll the newly active row into view as soon as we know
+  // it's next — a stable anchor rather than the node itself, since the node
+  // doesn't mount until the reveal stage above reaches "node".
+  useEffect(() => {
+    anchorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, [activeRow]);
 
   // Let the parent know the reveal actually finished — e.g. so a final
@@ -298,19 +336,41 @@ export function TaskGraph({
   // Waves past the cursor are not drawn at all, so the graph grows downward as
   // the run advances. Width still comes from the full layout, so revealing a
   // wider wave never shifts what is already on screen.
-  const revealedNodes = nodes.filter((n) => n.rowIndex <= activeRow);
-  const revealedWaves = waves.filter((w) => w.waveNumber - 1 <= activeRow);
-  const height = revealedNodes.length
-    ? Math.max(...revealedNodes.map(bottomOf))
-    : 0;
+  //
+  // `layoutNodes` sizes the container (so there's already room for the
+  // connecting line to draw into before the node itself exists). What
+  // actually renders is gated further by `revealStage`: a row behind the
+  // cursor is always shown; the current row only once its stage allows it —
+  // edges/wave box at "edge" or later, the node box only at "node".
+  const layoutNodes = nodes.filter((n) => n.rowIndex <= activeRow);
+  const isCurrentRowStageAtLeast = (stage: RevealStage) =>
+    revealStage === stage || (stage === "edge" && revealStage === "node");
+  const edgeTargetNodes = layoutNodes.filter(
+    (n) => n.rowIndex < activeRow || isCurrentRowStageAtLeast("edge")
+  );
+  const visibleWaves = waves.filter(
+    (w) => w.waveNumber - 1 < activeRow || isCurrentRowStageAtLeast("edge")
+  );
+  const visibleNodes = layoutNodes.filter(
+    (n) => n.rowIndex < activeRow || revealStage === "node"
+  );
+  const height = layoutNodes.length ? Math.max(...layoutNodes.map(bottomOf)) : 0;
+  const activeRowTop = nodes.find((n) => n.rowIndex === activeRow);
+  const anchorY = activeRowTop ? topOf(activeRowTop) : height;
 
   return (
     // Not itself layout-animated: its children are absolutely positioned, so
     // resizing it instantly never clips anything, and skipping it here avoids
     // a wobble from nesting two layout-animated boxes inside one another.
     <div className="task-graph" style={{ width, height }}>
+      {/* Invisible scroll target for the current row — mounted regardless of
+          reveal stage, so scrolling doesn't wait on the node itself. */}
+      <div
+        ref={anchorRef}
+        style={{ position: "absolute", left: 0, top: anchorY, width: 1, height: 1 }}
+      />
       <svg className="task-graph__edges" width={width} height={height}>
-        {revealedNodes.map((n) => {
+        {edgeTargetNodes.map((n) => {
           const sources = n.dependsOn
             .map((id) => nodeById.get(id))
             .filter((s): s is PositionedTask => !!s);
@@ -346,7 +406,7 @@ export function TaskGraph({
         })}
       </svg>
 
-      {revealedWaves.map((w) => (
+      {visibleWaves.map((w) => (
         <motion.div
           key={`wave-${w.waveNumber}`}
           className="wave-box"
@@ -372,7 +432,7 @@ export function TaskGraph({
         </motion.div>
       ))}
 
-      {revealedNodes.map((n) => {
+      {visibleNodes.map((n) => {
         const isRunning = n.rowIndex === activeRow;
         // `collapsedIds` already folds in manualOverrides (see above), so it
         // is both the source `layout()` sized this node from and the source
@@ -402,7 +462,6 @@ export function TaskGraph({
         return (
           <motion.button
             key={n.id}
-            ref={isRunning ? activeNodeRef : undefined}
             type="button"
             className={`task-node status-${n.status}${
               n.id === selectedId ? " is-selected" : ""
