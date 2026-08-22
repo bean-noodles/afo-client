@@ -117,47 +117,130 @@
 .sidebar__footer {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   padding-top: 16px;
   margin-top: 12px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
-  font-size: 13px;
-  color: #cfcbd9;
 }
 
-.sidebar__profile-dot {
-  width: 10px;
-  height: 10px;
+.sidebar__avatar {
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   background: #4f7dfa;
   flex-shrink: 0;
 }
 
-.new-chat {
+.sidebar__profile-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sidebar__profile-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #e8e6ef;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar__profile-email {
+  font-size: 11px;
+  color: #8b8798;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.new-chat,
+.new-record {
   display: flex;
   align-items: center;
   gap: 10px;
   width: 100%;
   padding: 10px 12px;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid transparent;
+  background: none;
   color: #e8e6ef;
   cursor: pointer;
   font-size: 14px;
-  margin-bottom: 20px;
+}
+
+.new-chat {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  margin-bottom: 6px;
 }
 
 .new-chat:hover {
   background: rgba(255, 255, 255, 0.08);
 }
 
-.sidebar__section {
+.new-record:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.sidebar__projects-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 18px 0 8px;
+}
+
+.sidebar__projects-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: none;
+  padding: 0;
   font-size: 12px;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: #8b8798;
+  cursor: pointer;
+}
+
+.sidebar__chevron {
+  transition: transform 0.15s ease;
+}
+
+.sidebar__chevron.is-collapsed {
+  transform: rotate(-90deg);
+}
+
+.sidebar__projects-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.project-group {
   margin-bottom: 10px;
+}
+
+.project-group__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  font-size: 13px;
+  color: #cfcbd9;
+}
+
+.project-group__items {
+  display: flex;
+  flex-direction: column;
+}
+
+.project-group__items .chat-item {
+  padding-left: 32px;
 }
 
 .chat-item {
