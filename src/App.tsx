@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { tasks, finalResult } from "./data/tasks";
 import { TaskGraph } from "./components/TaskGraph";
 import { AgentsTaskforcePanel } from "./components/AgentsTaskforcePanel";
+import { Login } from "./components/Login";
 import writeIcon from "./assets/icons/icon-park-outline_write.svg";
 import folderIcon from "./assets/icons/folder.svg";
 import panelLeftIcon from "./assets/icons/panel-left.svg";
@@ -9,7 +10,7 @@ import searchIcon from "./assets/icons/search.svg";
 import chevronDownIcon from "./assets/icons/chevron-down.svg";
 import moreHorizontalIcon from "./assets/icons/more-horizontal.svg";
 import plusIcon from "./assets/icons/plus.svg";
-import settingsIcon from "./assets/icons/settings.svg";
+import LogoutIcon from "./assets/icons/logout.svg";
 import "./App.css";
 
 interface LogEntry {
@@ -68,6 +69,7 @@ function buildLogs(): LogEntry[] {
 }
 
 function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const defaultSelected = tasks.find((t) => t.status === "in_progress")?.id ?? tasks[0].id;
   const [selectedId, setSelectedId] = useState(defaultSelected);
   const [activeChat, setActiveChat] = useState<string | null>("Astropy 리서치");
@@ -99,6 +101,10 @@ function App() {
       return next;
     });
   };
+
+  if (!isAuthenticated) {
+    return <Login onSignIn={() => setIsAuthenticated(true)} />;
+  }
 
   return (
     <div className={`app${sidebarOpen ? "" : " is-sidebar-collapsed"}`}>
@@ -214,8 +220,12 @@ function App() {
             <span className="sidebar__profile-name">Sungmin Cho</span>
             <span className="sidebar__profile-email">sead12g@gmail.com</span>
           </div>
-          <button className="sidebar__icon-btn" aria-label="설정">
-            <img src={settingsIcon} alt="" width={18} height={18} />
+          <button
+            className="sidebar__icon-btn"
+            onClick={() => setIsAuthenticated(false)}
+            aria-label="로그아웃"
+          >
+            <img src={LogoutIcon} alt="" width={18} height={18} />
           </button>
         </div>
       </aside>

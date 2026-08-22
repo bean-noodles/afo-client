@@ -1,6 +1,10 @@
 .app *,
 .app *::before,
-.app *::after {
+.app *::after,
+.login,
+.login *,
+.login *::before,
+.login *::after {
   box-sizing: border-box;
 }
 
@@ -602,6 +606,114 @@
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* ---------- Login ---------- */
+
+.login {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100svh;
+  width: 100%;
+  background: #000000;
+}
+
+.login__card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 32px;
+  width: 360px;
+}
+
+.login__logo {
+  display: block;
+}
+
+.login__title {
+  font-size: 20px;
+  font-weight: 500;
+  letter-spacing: -0.4px;
+  color: #ffffff;
+}
+
+.login__form {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 16px;
+  width: 100%;
+}
+
+.login__primary-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+.login__input {
+  width: 100%;
+  padding: 10px 21px;
+  border: none;
+  border-radius: 100px;
+  background: #27272a;
+  color: #e8e6ef;
+  font-size: 16px;
+  font-family: inherit;
+  letter-spacing: -0.32px;
+  outline: none;
+}
+
+.login__input::placeholder {
+  color: #a1a1aa;
+}
+
+.login__continue,
+.login__google {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px;
+  border: none;
+  border-radius: 100px;
+  background: #ffffff;
+  color: #000000;
+  font-size: 16px;
+  font-weight: 500;
+  font-family: inherit;
+  letter-spacing: -0.32px;
+  cursor: pointer;
+}
+
+.login__continue:hover,
+.login__google:hover {
+  background: #f1f1f1;
+}
+
+.login__divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.login__divider-line {
+  flex: 1;
+  height: 1px;
+  background: #a1a1aa;
+}
+
+.login__divider-text {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: -0.24px;
+  color: #a1a1aa;
+  white-space: nowrap;
 }
 
 /* ---------- System Log sidebar ---------- */
