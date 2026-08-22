@@ -1,8 +1,20 @@
-import { useMemo, useState } from "react";
-import { tasks, finalResult } from "./data/tasks";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { tasks as demoTasks, finalResult as demoFinalResult } from "./data/tasks";
+import type { Task } from "./data/tasks";
 import { TaskGraph } from "./components/TaskGraph";
 import { AgentsTaskforcePanel } from "./components/AgentsTaskforcePanel";
 import { Login } from "./components/Login";
+import {
+  ApiError,
+  IS_API_CONFIGURED,
+  fetchMe,
+  getSession,
+  getSquad,
+  listSquads,
+} from "./api";
+import { toLogEntries, toTasks } from "./adapters";
+import type { LogEntry } from "./adapters";
+import type { SquadDetail, SquadSummary, User } from "./types";
 import writeIcon from "./assets/icons/icon-park-outline_write.svg";
 import folderIcon from "./assets/icons/folder.svg";
 import panelLeftIcon from "./assets/icons/panel-left.svg";
@@ -15,38 +27,30 @@ import uploadBoxIcon from "./assets/icons/upload-box.svg";
 import sendArrowIcon from "./assets/icons/send-arrow.svg";
 import "./App.css";
 
-interface LogEntry {
-  id: string;
-  time: string;
-  agentName: string;
-  text: string;
+const TOKEN_KEY = "afo_token";
+
+/** What the main canvas renders — the same shape in demo and API mode. */
+interface ActiveSession {
+  request: string;
+  tasks: Task[];
+  finalResult: string | null;
+  logs: LogEntry[];
 }
 
-const PROJECTS = [
-  {
-    id: "squad",
-    name: "SquAd",
-    items: ["Writewrite", "Writewrite", "Writewrite"],
-  },
-  {
-    id: "squbd",
-    name: "SquBd",
-    items: ["Writewrite", "Writewrite"],
-  },
-  {
-    id: "squcd",
-    name: "SquCd",
-    items: ["Writewrite", "Writewrite", "Writewrite"],
-  },
-].map((project) => ({
-  ...project,
-  items: project.items.map((label, i) => ({ id: `${project.id}-${i}`, label })),
-}));
+const DEMO_USER: User = {
+  id: "demo",
+  email: "sead12g@gmail.com",
+  name: "Sungmin Cho",
+  created_at: "",
+  updated_at: "",
+};
 
-function buildLogs(): LogEntry[] {
+const DEMO_SQUAD_ID = "demo-squad";
+const DEMO_EXECUTION_ID = "demo-session";
+
+function demoLogs(): LogEntry[] {
   const entries: (LogEntry & { sortKey: string })[] = [];
-
-  for (const task of tasks) {
+  for (const task of demoTasks) {
     if (task.startedAt) {
       entries.push({
         id: `${task.id}-start`,
@@ -66,37 +70,161 @@ function buildLogs(): LogEntry[] {
       });
     }
   }
-
   return entries.sort((a, b) => a.sortKey.localeCompare(b.sortKey));
 }
 
+const DEMO_SESSION: ActiveSession = {
+  request: "Astropy 리서치",
+  tasks: demoTasks,
+  finalResult: demoFinalResult,
+  logs: demoLogs(),
+};
+
+const DEMO_SQUADS: SquadSummary[] = [
+  {
+    id: DEMO_SQUAD_ID,
+    squad_id: DEMO_SQUAD_ID,
+    squad_name: "리서치 스쿼드 (샘플)",
+    description: null,
+    session_count: 1,
+    created_at: "",
+    updated_at: "",
+  },
+];
+
+/** Magic-link callback lands here as ?token=... — consume it and tidy the URL. */
+function readTokenFromUrl(): string | null {
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get("token");
+  if (token) window.history.replaceState({}, "", window.location.pathname);
+  return token;
+}
+
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const defaultSelected =
-    tasks.find((t) => t.status === "in_progress")?.id ?? tasks[0].id;
-  const [selectedId, setSelectedId] = useState(defaultSelected);
-  const [activeChat, setActiveChat] = useState<string | null>("Astropy 리서치");
-  const [activeItemId, setActiveItemId] = useState<string | null>(null);
+  const [token, setToken] = useState<string | null>(
+    () => readTokenFromUrl() ?? localStorage.getItem(TOKEN_KEY)
+  );
+  const [user, setUser] = useState<User | null>(IS_API_CONFIGURED ? null : DEMO_USER);
+  const [squads, setSquads] = useState<SquadSummary[]>(
+    IS_API_CONFIGURED ? [] : DEMO_SQUADS
+  );
+  const [squadDetails, setSquadDetails] = useState<Record<string, SquadDetail>>({});
+  const [expandedSquadIds, setExpandedSquadIds] = useState<Set<string>>(new Set());
+  const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(null);
+  const [session, setSession] = useState<ActiveSession | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  // The graph's own reveal animation, not just data availability, gates the
+  // final-answer bubble — otherwise it lands while earlier waves are still
+  // visibly running.
+  const [graphSequenceDone, setGraphSequenceDone] = useState(false);
+  const finalResultRef = useRef<HTMLDivElement | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [projectsOpen, setProjectsOpen] = useState(true);
-  const [collapsedProjectIds, setCollapsedProjectIds] = useState<Set<string>>(
-    new Set()
-  );
   const [draft, setDraft] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const logs = useMemo(buildLogs, []);
+
+  const isDemo = !IS_API_CONFIGURED;
+  const isAuthenticated = isDemo || Boolean(token);
+
+  useEffect(() => {
+    if (isDemo) return;
+    if (token) localStorage.setItem(TOKEN_KEY, token);
+    else localStorage.removeItem(TOKEN_KEY);
+  }, [token, isDemo]);
+
+  // A freshly loaded session hasn't run its reveal yet, whatever the last one did.
+  useEffect(() => {
+    setGraphSequenceDone(false);
+  }, [selectedExecutionId]);
+
+  // Follow the run all the way to its conclusion: once the final answer
+  // lands, bring it into view just like each wave did as it opened.
+  useEffect(() => {
+    if (graphSequenceDone) {
+      finalResultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [graphSequenceDone]);
+
+  const handleLogout = useCallback(() => {
+    setToken(null);
+    setUser(null);
+    setSquads([]);
+    setSquadDetails({});
+    setExpandedSquadIds(new Set());
+    setSelectedExecutionId(null);
+    setSession(null);
+  }, []);
+
+  // Current user + squad list, whenever we hold a token.
+  useEffect(() => {
+    if (isDemo || !token) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const [me, squadList] = await Promise.all([fetchMe(token), listSquads(token)]);
+        if (cancelled) return;
+        setUser(me);
+        setSquads(squadList);
+      } catch (err) {
+        if (cancelled) return;
+        if (err instanceof ApiError && err.status === 401) handleLogout();
+        else setError(err instanceof Error ? err.message : String(err));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [token, isDemo, handleLogout]);
+
+  const toggleSquad = async (squadId: string) => {
+    setExpandedSquadIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(squadId)) next.delete(squadId);
+      else next.add(squadId);
+      return next;
+    });
+    if (isDemo || squadDetails[squadId] || !token) return;
+    try {
+      const detail = await getSquad(token, squadId);
+      setSquadDetails((prev) => ({ ...prev, [squadId]: detail }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  const selectSession = async (squadId: string, executionId: string) => {
+    setSelectedExecutionId(executionId);
+    if (isDemo) {
+      setSession(DEMO_SESSION);
+      setSelectedTaskId(null);
+      return;
+    }
+    if (!token) return;
+    try {
+      const detail = await getSession(token, squadId, executionId);
+      setSession({
+        request: detail.request ?? detail.plan_title ?? "(제목 없음)",
+        tasks: toTasks(detail),
+        finalResult: detail.final_result,
+        logs: toLogEntries(detail.timeline),
+      });
+      setSelectedTaskId(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  };
 
   const goHome = () => {
-    setActiveChat(null);
-    setActiveItemId(null);
+    setSelectedExecutionId(null);
+    setSession(null);
   };
 
   const startChat = () => {
     if (!draft.trim()) return;
-    setActiveChat(draft.trim());
-    setActiveItemId(null);
     setDraft("");
   };
 
@@ -107,35 +235,50 @@ function App() {
     });
   };
 
+  /** Sidebar tree: squads with whatever sessions we've loaded for them. */
+  const tree = useMemo(
+    () =>
+      squads.map((squad) => {
+        const sessions = isDemo
+          ? [{ id: DEMO_EXECUTION_ID, label: DEMO_SESSION.request }]
+          : (squadDetails[squad.id]?.sessions ?? []).map((s) => ({
+              id: s.execution_id,
+              label: s.request ?? s.execution_id,
+            }));
+        return {
+          id: squad.id,
+          name: squad.squad_name ?? squad.squad_id ?? squad.id,
+          sessions,
+        };
+      }),
+    [squads, squadDetails, isDemo]
+  );
+
   const query = searchQuery.trim().toLowerCase();
-  const filteredProjects = query
-    ? PROJECTS.map((project) => ({
-        ...project,
-        items: project.items.filter((item) =>
-          item.label.toLowerCase().includes(query)
-        ),
-      })).filter(
-        (project) =>
-          project.name.toLowerCase().includes(query) || project.items.length > 0
-      )
-    : PROJECTS;
+  const filteredTree = query
+    ? tree
+        .map((squad) => ({
+          ...squad,
+          sessions: squad.sessions.filter((s) => s.label.toLowerCase().includes(query)),
+        }))
+        .filter((s) => s.name.toLowerCase().includes(query) || s.sessions.length > 0)
+    : tree;
 
-  const selectItem = (id: string, label: string) => {
-    setActiveItemId(id);
-    setActiveChat(label);
-  };
-
-  const toggleProject = (id: string) => {
-    setCollapsedProjectIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
+  const graphSelectedId =
+    selectedTaskId ??
+    session?.tasks.find((t) => t.status === "in_progress")?.id ??
+    session?.tasks[0]?.id ??
+    null;
 
   if (!isAuthenticated) {
-    return <Login onSignIn={() => setIsAuthenticated(true)} />;
+    return (
+      <Login
+        onLoggedIn={(newToken, newUser) => {
+          setToken(newToken);
+          setUser(newUser);
+        }}
+      />
+    );
   }
 
   return (
@@ -189,13 +332,7 @@ function App() {
               autoFocus
             />
           )}
-          <button
-            className="new-chat"
-            onClick={() => {
-              setActiveChat(null);
-              setActiveItemId(null);
-            }}
-          >
+          <button className="new-chat" onClick={goHome}>
             <img src={writeIcon} alt="" width={16} height={16} />
             New Chat
           </button>
@@ -217,9 +354,7 @@ function App() {
                 alt=""
                 width={12}
                 height={12}
-                className={`sidebar__chevron${
-                  projectsOpen ? "" : " is-collapsed"
-                }`}
+                className={`sidebar__chevron${projectsOpen ? "" : " is-collapsed"}`}
               />
             </button>
             <div className="sidebar__projects-actions">
@@ -231,43 +366,41 @@ function App() {
               </button>
             </div>
           </div>
-          {projectsOpen && query && filteredProjects.length === 0 && (
-            <p className="sidebar__search-empty">검색 결과가 없습니다.</p>
+          {projectsOpen && filteredTree.length === 0 && (
+            <p className="sidebar__search-empty">
+              {query ? "검색 결과가 없습니다." : "스쿼드가 없습니다."}
+            </p>
           )}
           {projectsOpen &&
-            filteredProjects.map((project) => {
-              const isCollapsed = query
-                ? false
-                : collapsedProjectIds.has(project.id);
+            filteredTree.map((squad) => {
+              const isExpanded = query || expandedSquadIds.has(squad.id);
               return (
-                <div key={project.id} className="project-group">
+                <div key={squad.id} className="project-group">
                   <button
                     type="button"
                     className="project-group__header"
-                    onClick={() => toggleProject(project.id)}
+                    onClick={() => void toggleSquad(squad.id)}
                   >
                     <img src={folderIcon} alt="" width={14} height={14} />
-                    {project.name}
+                    {squad.name}
                     <img
                       src={chevronDownIcon}
                       alt=""
                       width={10}
                       height={10}
-                      className={`sidebar__chevron${
-                        isCollapsed ? " is-collapsed" : ""
-                      }`}
+                      className={`sidebar__chevron${isExpanded ? "" : " is-collapsed"}`}
                       style={{ marginLeft: "auto" }}
                     />
                   </button>
-                  {!isCollapsed && (
+                  {isExpanded && (
                     <div className="project-group__items">
-                      {project.items.map((item) => (
+                      {squad.sessions.map((item) => (
                         <div
                           key={item.id}
                           className={`chat-item${
-                            item.id === activeItemId ? " chat-item--active" : ""
+                            item.id === selectedExecutionId ? " chat-item--active" : ""
                           }`}
-                          onClick={() => selectItem(item.id, item.label)}
+                          onClick={() => void selectSession(squad.id, item.id)}
                         >
                           {item.label}
                         </div>
@@ -281,12 +414,12 @@ function App() {
         <div className="sidebar__footer">
           <span className="sidebar__avatar" />
           <div className="sidebar__profile-info">
-            <span className="sidebar__profile-name">Sungmin Cho</span>
-            <span className="sidebar__profile-email">sead12g@gmail.com</span>
+            <span className="sidebar__profile-name">{user?.name ?? "-"}</span>
+            <span className="sidebar__profile-email">{user?.email ?? ""}</span>
           </div>
           <button
             className="sidebar__icon-btn"
-            onClick={() => setIsAuthenticated(false)}
+            onClick={handleLogout}
             aria-label="로그아웃"
           >
             <img src={LogoutIcon} alt="" width={18} height={18} />
@@ -295,22 +428,25 @@ function App() {
       </aside>
 
       <main className="main">
-        {activeChat ? (
+        {error && <p className="main__error">⚠ {error}</p>}
+        {session ? (
           <div className="canvas-scroll">
             <div className="canvas-stack">
               <div className="chat-row chat-row--user">
-                <div className="chat-msg chat-msg--user">{activeChat}</div>
+                <div className="chat-msg chat-msg--user">{session.request}</div>
               </div>
 
               <TaskGraph
-                tasks={tasks}
-                selectedId={selectedId}
-                onSelect={setSelectedId}
+                key={selectedExecutionId}
+                tasks={session.tasks}
+                selectedId={graphSelectedId}
+                onSelect={setSelectedTaskId}
+                onSequenceComplete={() => setGraphSequenceDone(true)}
               />
 
-              {finalResult && (
-                <div className="chat-row chat-row--agent">
-                  <div className="chat-msg chat-msg--agent">{finalResult}</div>
+              {session.finalResult && graphSequenceDone && (
+                <div className="chat-row chat-row--agent" ref={finalResultRef}>
+                  <div className="chat-msg chat-msg--agent">{session.finalResult}</div>
                 </div>
               )}
             </div>
@@ -340,9 +476,9 @@ function App() {
         )}
       </main>
 
-      {activeChat && (
+      {session && (
         <AgentsTaskforcePanel
-          logs={logs}
+          logs={session.logs}
           collapsed={!panelOpen}
           onToggle={() => setPanelOpen((v) => !v)}
         />

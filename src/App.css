@@ -506,11 +506,11 @@
   text-align: left;
   cursor: pointer;
   overflow: hidden;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
-}
-
-.task-node:hover {
-  transform: translateY(-2px);
+  /* transform is animated by framer-motion's `layout`/`whileHover` in
+     TaskGraph.tsx — a CSS transition on it here would fight that JS-driven
+     animation frame-by-frame (observed as the collapse/expand snapping
+     instead of easing). */
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .task-node.is-selected {
@@ -582,11 +582,17 @@
 .task-node__text--desc {
   -webkit-line-clamp: 2;
   line-clamp: 2;
+  /* Fixed to exactly 2 lines' height so the typing reveal (1 line's worth of
+     text growing to 2) never changes this box's own size — otherwise its
+     `layout`-tracked parent sees a size change on every keystroke tick and
+     plays a tiny FLIP animation, seen as the text briefly squashing. */
+  height: calc(1.45em * 2);
 }
 
 .task-node__text--output {
   -webkit-line-clamp: 4;
   line-clamp: 4;
+  height: calc(1.45em * 4);
 }
 
 .task-node__progress-row {
@@ -756,6 +762,39 @@
   letter-spacing: -0.24px;
   color: #a1a1aa;
   white-space: nowrap;
+}
+
+.login__continue:disabled,
+.login__google:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* GSI insists on rendering its own button; keep it reachable for a
+   synthetic click but out of the layout so the designed button shows. */
+.login__google-slot {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  pointer-events: none;
+}
+
+.login__hint,
+.login__error {
+  max-width: 360px;
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.login__hint {
+  color: #a1a1aa;
+}
+
+.login__error {
+  color: #f87171;
 }
 
 /* ---------- System Log sidebar ---------- */
