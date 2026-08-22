@@ -11,6 +11,8 @@ import chevronDownIcon from "./assets/icons/chevron-down.svg";
 import moreHorizontalIcon from "./assets/icons/more-horizontal.svg";
 import plusIcon from "./assets/icons/plus.svg";
 import LogoutIcon from "./assets/icons/logout.svg";
+import uploadBoxIcon from "./assets/icons/upload-box.svg";
+import sendArrowIcon from "./assets/icons/send-arrow.svg";
 import "./App.css";
 
 interface LogEntry {
@@ -70,14 +72,17 @@ function buildLogs(): LogEntry[] {
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const defaultSelected = tasks.find((t) => t.status === "in_progress")?.id ?? tasks[0].id;
+  const defaultSelected =
+    tasks.find((t) => t.status === "in_progress")?.id ?? tasks[0].id;
   const [selectedId, setSelectedId] = useState(defaultSelected);
   const [activeChat, setActiveChat] = useState<string | null>("Astropy 리서치");
   const [activeItemId, setActiveItemId] = useState<string | null>(null);
   const [panelOpen, setPanelOpen] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [projectsOpen, setProjectsOpen] = useState(true);
-  const [collapsedProjectIds, setCollapsedProjectIds] = useState<Set<string>>(new Set());
+  const [collapsedProjectIds, setCollapsedProjectIds] = useState<Set<string>>(
+    new Set()
+  );
   const [draft, setDraft] = useState("");
   const logs = useMemo(buildLogs, []);
 
@@ -125,7 +130,7 @@ function App() {
             <span className="sidebar__brand">AFO</span>
             <div className="sidebar__brand-actions">
               <button className="sidebar__icon-btn" aria-label="검색">
-                <img src={searchIcon} alt="" width={20} height={20} />
+                <img src={searchIcon} alt="" width={22} height={22} />
               </button>
               <button
                 className="sidebar__icon-btn"
@@ -148,7 +153,7 @@ function App() {
           </button>
           <button className="new-record">
             <img src={folderIcon} alt="" width={16} height={16} />
-            New Record
+            New Squad
           </button>
         </div>
         <div className="sidebar__chats">
@@ -158,14 +163,16 @@ function App() {
               className="sidebar__projects-toggle"
               onClick={() => setProjectsOpen((v) => !v)}
             >
+              Projects
               <img
                 src={chevronDownIcon}
                 alt=""
                 width={12}
                 height={12}
-                className={`sidebar__chevron${projectsOpen ? "" : " is-collapsed"}`}
+                className={`sidebar__chevron${
+                  projectsOpen ? "" : " is-collapsed"
+                }`}
               />
-              Projects
             </button>
             <div className="sidebar__projects-actions">
               <button className="sidebar__icon-btn" aria-label="더보기">
@@ -193,7 +200,9 @@ function App() {
                       alt=""
                       width={10}
                       height={10}
-                      className={`sidebar__chevron${isCollapsed ? " is-collapsed" : ""}`}
+                      className={`sidebar__chevron${
+                        isCollapsed ? " is-collapsed" : ""
+                      }`}
                       style={{ marginLeft: "auto" }}
                     />
                   </button>
@@ -202,7 +211,9 @@ function App() {
                       {project.items.map((item) => (
                         <div
                           key={item.id}
-                          className={`chat-item${item.id === activeItemId ? " chat-item--active" : ""}`}
+                          className={`chat-item${
+                            item.id === activeItemId ? " chat-item--active" : ""
+                          }`}
                           onClick={() => selectItem(item.id, item.label)}
                         >
                           {item.label}
@@ -238,7 +249,11 @@ function App() {
                 <div className="chat-msg chat-msg--user">{activeChat}</div>
               </div>
 
-              <TaskGraph tasks={tasks} selectedId={selectedId} onSelect={setSelectedId} />
+              <TaskGraph
+                tasks={tasks}
+                selectedId={selectedId}
+                onSelect={setSelectedId}
+              />
 
               {finalResult && (
                 <div className="chat-row chat-row--agent">
@@ -249,7 +264,6 @@ function App() {
           </div>
         ) : (
           <div className="empty-chat">
-            <p className="empty-chat__hint">무엇을 조사해 드릴까요?</p>
             <div className="empty-chat__input-row">
               <input
                 className="empty-chat__input"
@@ -258,8 +272,15 @@ function App() {
                 onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && startChat()}
               />
-              <button className="empty-chat__send" onClick={startChat} aria-label="전송">
-                ↑
+              <button className="empty-chat__attach" aria-label="파일 첨부">
+                <img src={uploadBoxIcon} alt="" width={24} height={24} />
+              </button>
+              <button
+                className="empty-chat__send"
+                onClick={startChat}
+                aria-label="전송"
+              >
+                <img src={sendArrowIcon} alt="" width={24} height={24} />
               </button>
             </div>
           </div>

@@ -11,11 +11,11 @@ const COLUMN_WIDTH = 328;
 const NODE_WIDTH = 304;
 const NODE_HEIGHT = 292;
 const COLLAPSED_NODE_HEIGHT = 140;
-const V_GAP = 76;
-const WAVE_PAD = 18;
-const WAVE_LABEL_H = 26;
+const V_GAP = 32;
+const WAVE_PAD = 13;
+const WAVE_LABEL_H = 22;
 const CORNER = 10;
-const BUS_OFFSET = 30;
+const BUS_OFFSET = 16;
 
 const AGENT_COLORS: Record<string, string> = {
   연구자: "#2dd9a3",
