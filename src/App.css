@@ -136,7 +136,7 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
 }
 
 .sidebar__profile-name {
@@ -229,9 +229,20 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  width: 100%;
   padding: 6px 10px;
+  border: none;
+  background: none;
   font-size: 13px;
+  font-family: inherit;
   color: #cfcbd9;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 8px;
+}
+
+.project-group__header:hover {
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .project-group__items {
@@ -365,10 +376,6 @@
 
 .app.is-sidebar-collapsed .main {
   padding-left: 68px;
-}
-
-.app:has(.taskforce-panel) .main {
-  padding-right: 388px;
 }
 
 /* ---------- Task graph ---------- */

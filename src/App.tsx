@@ -75,6 +75,7 @@ function App() {
   const [panelOpen, setPanelOpen] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [projectsOpen, setProjectsOpen] = useState(true);
+  const [collapsedProjectIds, setCollapsedProjectIds] = useState<Set<string>>(new Set());
   const [draft, setDraft] = useState("");
   const logs = useMemo(buildLogs, []);
 
@@ -88,6 +89,15 @@ function App() {
   const selectItem = (id: string, label: string) => {
     setActiveItemId(id);
     setActiveChat(label);
+  };
+
+  const toggleProject = (id: string) => {
+    setCollapsedProjectIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   };
 
   return (
@@ -161,25 +171,42 @@ function App() {
             </div>
           </div>
           {projectsOpen &&
-            PROJECTS.map((project) => (
-              <div key={project.id} className="project-group">
-                <div className="project-group__header">
-                  <img src={folderIcon} alt="" width={14} height={14} />
-                  {project.name}
-                </div>
-                <div className="project-group__items">
-                  {project.items.map((item) => (
-                    <div
-                      key={item.id}
-                      className={`chat-item${item.id === activeItemId ? " chat-item--active" : ""}`}
-                      onClick={() => selectItem(item.id, item.label)}
-                    >
-                      {item.label}
+            PROJECTS.map((project) => {
+              const isCollapsed = collapsedProjectIds.has(project.id);
+              return (
+                <div key={project.id} className="project-group">
+                  <button
+                    type="button"
+                    className="project-group__header"
+                    onClick={() => toggleProject(project.id)}
+                  >
+                    <img src={folderIcon} alt="" width={14} height={14} />
+                    {project.name}
+                    <img
+                      src={chevronDownIcon}
+                      alt=""
+                      width={10}
+                      height={10}
+                      className={`sidebar__chevron${isCollapsed ? " is-collapsed" : ""}`}
+                      style={{ marginLeft: "auto" }}
+                    />
+                  </button>
+                  {!isCollapsed && (
+                    <div className="project-group__items">
+                      {project.items.map((item) => (
+                        <div
+                          key={item.id}
+                          className={`chat-item${item.id === activeItemId ? " chat-item--active" : ""}`}
+                          onClick={() => selectItem(item.id, item.label)}
+                        >
+                          {item.label}
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
         </div>
         <div className="sidebar__footer">
           <span className="sidebar__avatar" />
