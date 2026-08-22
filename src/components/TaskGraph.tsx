@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { Task, TaskStatus } from "../data/tasks";
 
 interface TaskGraphProps {
@@ -10,6 +10,7 @@ interface TaskGraphProps {
 const COLUMN_WIDTH = 328;
 const NODE_WIDTH = 304;
 const NODE_HEIGHT = 292;
+const COLLAPSED_NODE_HEIGHT = 140;
 const V_GAP = 76;
 const WAVE_PAD = 18;
 const WAVE_LABEL_H = 26;
@@ -44,6 +45,7 @@ const WAVE_TINTS = [
 interface PositionedTask extends Task {
   x: number;
   y: number;
+  height: number;
   rowIndex: number;
 }
 
@@ -56,9 +58,10 @@ interface WaveBox {
   tint: (typeof WAVE_TINTS)[number];
 }
 
-function layout(tasks: Task[]) {
+function layout(tasks: Task[], collapsedIds: Set<string>) {
   const byId = new Map(tasks.map((t) => [t.id, t]));
   const depthCache = new Map<string, number>();
+  const heightOf = (t: Task) => (collapsedIds.has(t.id) ? COLLAPSED_NODE_HEIGHT : NODE_HEIGHT);
 
   function depthOf(id: string): number {
     if (depthCache.has(id)) return depthCache.get(id)!;
@@ -80,7 +83,7 @@ function layout(tasks: Task[]) {
   const width = contentWidth + WAVE_PAD * 2;
   const centerX = width / 2;
 
-  const positions = new Map<string, { x: number; y: number }>();
+  const positions = new Map<string, { x: number; y: number; height: number }>();
   const waves: WaveBox[] = [];
   let cursorY = 0;
 
@@ -89,9 +92,10 @@ function layout(tasks: Task[]) {
     const rowWidth = row.length * COLUMN_WIDTH - (COLUMN_WIDTH - NODE_WIDTH);
     const startX = centerX - rowWidth / 2;
     const nodeY = cursorY + (isWave ? WAVE_PAD + WAVE_LABEL_H : 0);
+    const rowHeight = Math.max(...row.map(heightOf));
 
     row.forEach((t, colIndex) => {
-      positions.set(t.id, { x: startX + colIndex * COLUMN_WIDTH, y: nodeY });
+      positions.set(t.id, { x: startX + colIndex * COLUMN_WIDTH, y: nodeY, height: heightOf(t) });
     });
 
     if (isWave) {
@@ -100,12 +104,12 @@ function layout(tasks: Task[]) {
         x: startX - WAVE_PAD,
         y: cursorY,
         width: rowWidth + WAVE_PAD * 2,
-        height: WAVE_LABEL_H + WAVE_PAD * 2 + NODE_HEIGHT,
+        height: WAVE_LABEL_H + WAVE_PAD * 2 + rowHeight,
         tint: WAVE_TINTS[rowIndex % WAVE_TINTS.length],
       });
     }
 
-    cursorY = nodeY + NODE_HEIGHT + (isWave ? WAVE_PAD : 0) + V_GAP;
+    cursorY = nodeY + rowHeight + (isWave ? WAVE_PAD : 0) + V_GAP;
   });
 
   const nodes: PositionedTask[] = tasks.map((t) => {
@@ -133,18 +137,33 @@ function branchPath(sx: number, sy: number, tx: number, busY: number) {
 }
 
 export function TaskGraph({ tasks, selectedId, onSelect }: TaskGraphProps) {
-  const { nodes, waves, width, height } = useMemo(() => layout(tasks), [tasks]);
+  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(
+    () => new Set(tasks.map((t) => t.id))
+  );
+  const { nodes, waves, width, height } = useMemo(
+    () => layout(tasks, collapsedIds),
+    [tasks, collapsedIds]
+  );
   const nodeById = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
   const waveByRow = useMemo(
     () => new Map(waves.map((w) => [w.waveNumber - 1, w])),
     [waves]
   );
 
+  const toggleCollapsed = (id: string) => {
+    setCollapsedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
   /** Outer top/bottom edge of a node, accounting for its wave box. */
   const topOf = (n: PositionedTask) => waveByRow.get(n.rowIndex)?.y ?? n.y;
   const bottomOf = (n: PositionedTask) => {
     const w = waveByRow.get(n.rowIndex);
-    return w ? w.y + w.height : n.y + NODE_HEIGHT;
+    return w ? w.y + w.height : n.y + n.height;
   };
 
   return (
@@ -201,6 +220,7 @@ export function TaskGraph({ tasks, selectedId, onSelect }: TaskGraphProps) {
 
       {nodes.map((n) => {
         const progress = PROGRESS[n.status];
+        const isCollapsed = collapsedIds.has(n.id);
         return (
           <button
             key={n.id}
@@ -208,8 +228,11 @@ export function TaskGraph({ tasks, selectedId, onSelect }: TaskGraphProps) {
             className={`task-node status-${n.status}${
               n.id === selectedId ? " is-selected" : ""
             }`}
-            style={{ left: n.x, top: n.y, width: NODE_WIDTH, height: NODE_HEIGHT }}
-            onClick={() => onSelect(n.id)}
+            style={{ left: n.x, top: n.y, width: NODE_WIDTH, height: n.height }}
+            onClick={() => {
+              onSelect(n.id);
+              toggleCollapsed(n.id);
+            }}
           >
             <div className="task-node__header">
               <span
@@ -223,17 +246,21 @@ export function TaskGraph({ tasks, selectedId, onSelect }: TaskGraphProps) {
 
             <div className="task-node__divider" />
 
-            <div className="task-node__section">
-              <span className="task-node__label">설명</span>
-              <p className="task-node__text task-node__text--desc">{n.description}</p>
-            </div>
+            {!isCollapsed && (
+              <>
+                <div className="task-node__section">
+                  <span className="task-node__label">설명</span>
+                  <p className="task-node__text task-node__text--desc">{n.description}</p>
+                </div>
 
-            <div className="task-node__section">
-              <span className="task-node__label">출력</span>
-              <p className="task-node__text task-node__text--output">
-                {n.output ?? "아직 출력이 없습니다."}
-              </p>
-            </div>
+                <div className="task-node__section">
+                  <span className="task-node__label">출력</span>
+                  <p className="task-node__text task-node__text--output">
+                    {n.output ?? "아직 출력이 없습니다."}
+                  </p>
+                </div>
+              </>
+            )}
 
             <div className="task-node__progress-row">
               <div className="task-node__track">
