@@ -134,7 +134,14 @@ function App() {
   const [draft, setDraft] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const squadFileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // The search field stays mounted for its collapse animation, so autoFocus
+  // would only fire on the very first open.
+  useEffect(() => {
+    if (searchOpen) searchInputRef.current?.focus();
+  }, [searchOpen]);
 
   const isDemo = !IS_API_CONFIGURED;
   // Login is mandatory even in demo mode — the main screen never renders
@@ -381,16 +388,25 @@ function App() {
 
   return (
     <div className={`app${sidebarOpen ? "" : " is-sidebar-collapsed"}`}>
-      {!sidebarOpen && (
-        <button
-          type="button"
-          className="sidebar-reopen"
-          onClick={() => setSidebarOpen(true)}
-          aria-label="사이드바 펼치기"
-        >
-          <img src={panelLeftIcon} alt="" width={20} height={20} />
-        </button>
-      )}
+      <AnimatePresence>
+        {!sidebarOpen && (
+          <motion.button
+            type="button"
+            className="sidebar-reopen"
+            onClick={() => setSidebarOpen(true)}
+            aria-label="사이드바 펼치기"
+            initial={{ opacity: 0, x: -8 }}
+            animate={{
+              opacity: 1,
+              x: 0,
+              transition: { delay: 0.15, duration: 0.2 },
+            }}
+            exit={{ opacity: 0, x: -8, transition: { duration: 0.15 } }}
+          >
+            <img src={panelLeftIcon} alt="" width={20} height={20} />
+          </motion.button>
+        )}
+      </AnimatePresence>
 
       <aside className="sidebar sidebar--left">
         <div className="sidebar__top">
@@ -420,16 +436,18 @@ function App() {
               </button>
             </div>
           </div>
-          {searchOpen && (
-            <input
-              className="sidebar__search"
-              type="text"
-              placeholder="검색"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              autoFocus
-            />
-          )}
+          <div className={`reveal${searchOpen ? " reveal--open" : ""}`}>
+            <div className="reveal__inner">
+              <input
+                ref={searchInputRef}
+                className="sidebar__search"
+                type="text"
+                placeholder="검색"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+          </div>
           <button className="new-chat" onClick={goHome}>
             <img src={writeIcon} alt="" width={16} height={16} />
             New Chat
@@ -470,44 +488,39 @@ function App() {
               />
             </button>
           </div>
-          {projectsOpen && filteredTree.length === 0 && (
-            <p className="sidebar__search-empty">
-              {query ? "검색 결과가 없습니다." : "스쿼드가 없습니다."}
-            </p>
-          )}
-          {projectsOpen &&
-            filteredTree.map((squad) => {
-              const isExpanded = query || expandedSquadIds.has(squad.id);
-              return (
-                <div key={squad.id} className="project-group">
-                  <button
-                    type="button"
-                    className="project-group__header"
-                    onClick={() => toggleSquad(squad.id)}
-                  >
-                    <img src={folderIcon} alt="" width={14} height={14} />
-                    {squad.name}
-                    <img
-                      src={chevronDownIcon}
-                      alt=""
-                      width={10}
-                      height={10}
-                      className={`sidebar__chevron${
-                        isExpanded ? "" : " is-collapsed"
-                      }`}
-                      style={{ marginLeft: "auto" }}
-                    />
-                  </button>
-                  <AnimatePresence initial={false}>
-                    {isExpanded && (
-                      <motion.div
-                        key="reveal"
-                        className="project-group__reveal"
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: "auto", opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
-                      >
+          <div className={`reveal${projectsOpen ? " reveal--open" : ""}`}>
+            <div className="reveal__inner">
+              {filteredTree.length === 0 && (
+                <p className="sidebar__search-empty">
+                  {query ? "검색 결과가 없습니다." : "스쿼드가 없습니다."}
+                </p>
+              )}
+              {filteredTree.map((squad) => {
+                const isExpanded = query || expandedSquadIds.has(squad.id);
+                return (
+                  <div key={squad.id} className="project-group">
+                    <button
+                      type="button"
+                      className="project-group__header"
+                      onClick={() => toggleSquad(squad.id)}
+                    >
+                      <img src={folderIcon} alt="" width={14} height={14} />
+                      {squad.name}
+                      <img
+                        src={chevronDownIcon}
+                        alt=""
+                        width={10}
+                        height={10}
+                        className={`sidebar__chevron${
+                          isExpanded ? "" : " is-collapsed"
+                        }`}
+                        style={{ marginLeft: "auto" }}
+                      />
+                    </button>
+                    <div
+                      className={`reveal${isExpanded ? " reveal--open" : ""}`}
+                    >
+                      <div className="reveal__inner">
                         {squad.isLoading && squad.sessions.length === 0 ? (
                           <SessionListSkeleton />
                         ) : (
@@ -526,19 +539,22 @@ function App() {
                                   duration: 0.18,
                                   delay: Math.min(i, 6) * 0.03,
                                 }}
-                                onClick={() => selectSession(squad.id, item.id)}
+                                onClick={() =>
+                                  selectSession(squad.id, item.id)
+                                }
                               >
                                 {item.label}
                               </motion.div>
                             ))}
                           </div>
                         )}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              );
-            })}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
         <div className="sidebar__footer">
           <span className="sidebar__avatar" />

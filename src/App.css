@@ -21,8 +21,7 @@
 
 .app {
   position: relative;
-  display: grid;
-  grid-template-columns: 240px 1fr;
+  display: flex;
   min-height: 100svh;
   background: #000000;
   color: #e8e6ef;
@@ -32,24 +31,24 @@
 
 /* ---------- Sidebars ---------- */
 
+/* Fixed width + negative margin (not a shrinking track) so collapsing slides
+   the whole panel off-screen without reflowing its contents. */
 .sidebar {
   display: flex;
   flex-direction: column;
+  width: 240px;
+  flex-shrink: 0;
   height: 100svh;
   position: sticky;
   top: 0;
   padding: 20px;
   border-inline: 1px solid rgba(255, 255, 255, 0.06);
   overflow: hidden;
-}
-
-.app.is-sidebar-collapsed {
-  grid-template-columns: 0 1fr;
+  transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .app.is-sidebar-collapsed .sidebar {
-  padding-inline: 0;
-  border-inline-width: 0;
+  margin-left: -240px;
   pointer-events: none;
 }
 
@@ -264,6 +263,33 @@
   transform: rotate(-90deg);
 }
 
+/* Interruption-safe expand/collapse: animating the grid row keeps content
+   mounted, so a mid-animation toggle retargets from the current height —
+   a JS height:auto tween interrupted here left a stale inline height. */
+.reveal {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.24s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.reveal--open {
+  grid-template-rows: 1fr;
+}
+
+.reveal__inner {
+  min-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  /* visibility keeps collapsed content out of the tab order */
+  visibility: hidden;
+  transition: opacity 0.2s ease, visibility 0.24s;
+}
+
+.reveal--open .reveal__inner {
+  opacity: 1;
+  visibility: visible;
+}
+
 .project-group {
   margin-bottom: 0;
 }
@@ -286,10 +312,6 @@
 
 .project-group__header:hover {
   background: rgba(255, 255, 255, 0.05);
-}
-
-.project-group__reveal {
-  overflow: hidden;
 }
 
 .project-group__items {
@@ -332,6 +354,8 @@
 /* ---------- Main stage ---------- */
 
 .main {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -339,6 +363,7 @@
   height: 100svh;
   padding: 32px 24px 40px;
   overflow: hidden;
+  transition: padding 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* ---------- Chat messages (user prompt / final result) ---------- */
