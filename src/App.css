@@ -616,7 +616,7 @@
 }
 
 .taskforce-panel.is-collapsed {
-  bottom: auto;
+  top: auto;
 }
 
 .taskforce-panel__header {
