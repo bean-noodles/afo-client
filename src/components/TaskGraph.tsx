@@ -62,7 +62,10 @@ function agentColor(name: string) {
   return AGENT_COLORS[name] ?? "#8b8798";
 }
 
-const PROGRESS: Record<TaskStatus, { pct: number; text: string; color: string }> = {
+const PROGRESS: Record<
+  TaskStatus,
+  { pct: number; text: string; color: string }
+> = {
   pending: { pct: 0, text: "Waiting", color: "#6b7280" },
   in_progress: { pct: 55, text: "Processing...", color: "#f0b429" },
   done: { pct: 100, text: "Complete!", color: "#34d399" },
@@ -71,10 +74,26 @@ const PROGRESS: Record<TaskStatus, { pct: number; text: string; color: string }>
 
 /** Wave box accent, cycled by wave index. */
 const WAVE_TINTS = [
-  { border: "rgba(45, 217, 163, 0.35)", bg: "rgba(45, 217, 163, 0.16)", label: "#2dd9a3" },
-  { border: "rgba(140, 122, 255, 0.35)", bg: "rgba(140, 122, 255, 0.17)", label: "#a99bff" },
-  { border: "rgba(240, 148, 51, 0.35)", bg: "rgba(240, 148, 51, 0.16)", label: "#f0a447" },
-  { border: "rgba(96, 165, 250, 0.35)", bg: "rgba(96, 165, 250, 0.16)", label: "#7dbaff" },
+  {
+    border: "rgba(45, 217, 163, 0.35)",
+    bg: "rgba(45, 217, 163, 0.16)",
+    label: "#2dd9a3",
+  },
+  {
+    border: "rgba(140, 122, 255, 0.35)",
+    bg: "rgba(140, 122, 255, 0.17)",
+    label: "#a99bff",
+  },
+  {
+    border: "rgba(240, 148, 51, 0.35)",
+    bg: "rgba(240, 148, 51, 0.16)",
+    label: "#f0a447",
+  },
+  {
+    border: "rgba(96, 165, 250, 0.35)",
+    bg: "rgba(96, 165, 250, 0.16)",
+    label: "#7dbaff",
+  },
 ];
 
 interface PositionedTask extends Task {
@@ -105,7 +124,10 @@ function rowIndexMap(tasks: Task[]) {
   function depthOf(id: string): number {
     if (cache.has(id)) return cache.get(id)!;
     const t = byId.get(id);
-    const d = !t || t.dependsOn.length === 0 ? 0 : 1 + Math.max(...t.dependsOn.map(depthOf));
+    const d =
+      !t || t.dependsOn.length === 0
+        ? 0
+        : 1 + Math.max(...t.dependsOn.map(depthOf));
     cache.set(id, d);
     return d;
   }
@@ -116,12 +138,16 @@ function rowIndexMap(tasks: Task[]) {
 function layout(tasks: Task[], collapsedIds: Set<string>) {
   const byId = new Map(tasks.map((t) => [t.id, t]));
   const depthCache = new Map<string, number>();
-  const heightOf = (t: Task) => (collapsedIds.has(t.id) ? COLLAPSED_NODE_HEIGHT : NODE_HEIGHT);
+  const heightOf = (t: Task) =>
+    collapsedIds.has(t.id) ? COLLAPSED_NODE_HEIGHT : NODE_HEIGHT;
 
   function depthOf(id: string): number {
     if (depthCache.has(id)) return depthCache.get(id)!;
     const t = byId.get(id);
-    const d = !t || t.dependsOn.length === 0 ? 0 : 1 + Math.max(...t.dependsOn.map(depthOf));
+    const d =
+      !t || t.dependsOn.length === 0
+        ? 0
+        : 1 + Math.max(...t.dependsOn.map(depthOf));
     depthCache.set(id, d);
     return d;
   }
@@ -150,7 +176,11 @@ function layout(tasks: Task[], collapsedIds: Set<string>) {
     const rowHeight = Math.max(...row.map(heightOf));
 
     row.forEach((t, colIndex) => {
-      positions.set(t.id, { x: startX + colIndex * COLUMN_WIDTH, y: nodeY, height: heightOf(t) });
+      positions.set(t.id, {
+        x: startX + colIndex * COLUMN_WIDTH,
+        y: nodeY,
+        height: heightOf(t),
+      });
     });
 
     if (isWave) {
@@ -210,7 +240,17 @@ export function TaskGraph({
   const [typed, setTyped] = useState(0);
   // Nodes the user manually clicked open/closed, overriding the auto state —
   // this is what lets a finished, auto-collapsed node be reopened by hand.
-  const [manualOverrides, setManualOverrides] = useState<Set<string>>(new Set());
+  const [manualOverrides, setManualOverrides] = useState<Set<string>>(
+    new Set()
+  );
+  // Row indices whose wave box is currently resizing from a manual toggle.
+  // Edges sourced from that row (i.e. reaching into the *next* row) hide for
+  // the duration of the resize instead of snapping their endpoint mid-flight,
+  // then redraw fresh once the box settles — same idea as the collapse→edge
+  // ordering below, just for the manual open/close path.
+  const [pendingEdgeRows, setPendingEdgeRows] = useState<Set<number>>(
+    new Set()
+  );
   // How far into revealing the *current* row we are — see RevealStage above.
   // Row 0 has nothing behind it to collapse or connect to, so it starts
   // straight at "node".
@@ -226,6 +266,17 @@ export function TaskGraph({
       else next.add(id);
       return next;
     });
+
+    const row = rowIndexById.get(id);
+    if (row === undefined) return;
+    setPendingEdgeRows((prev) => new Set(prev).add(row));
+    setTimeout(() => {
+      setPendingEdgeRows((prev) => {
+        const next = new Set(prev);
+        next.delete(row);
+        return next;
+      });
+    }, COLLAPSE_TRANSITION.duration * 1000);
   };
 
   /** Longest 설명+출력 in the running wave — typing ends when this is reached. */
@@ -236,8 +287,11 @@ export function TaskGraph({
     return lengths.length ? Math.max(...lengths) : 0;
   }, [tasks, rowIndexById, activeRow]);
 
+  // Gated on `revealStage === "node"` too — otherwise this clock runs while
+  // the node is still hidden behind the collapse/edge stages (~1.85s), and
+  // by the time it's actually shown, typing is already partway done or over.
   useEffect(() => {
-    if (finished || phase !== "typing") return;
+    if (finished || phase !== "typing" || revealStage !== "node") return;
     if (typed >= rowChars) {
       setPhase("hold");
       return;
@@ -247,7 +301,7 @@ export function TaskGraph({
       TYPE_TICK_MS
     );
     return () => clearTimeout(id);
-  }, [finished, phase, typed, rowChars]);
+  }, [finished, phase, revealStage, typed, rowChars]);
 
   useEffect(() => {
     if (finished || phase !== "hold") return;
@@ -312,7 +366,9 @@ export function TaskGraph({
     const s = new Set<string>();
     tasks.forEach((t) => {
       const autoCollapsed = rowIndexById.get(t.id) !== activeRow;
-      const collapsed = manualOverrides.has(t.id) ? !autoCollapsed : autoCollapsed;
+      const collapsed = manualOverrides.has(t.id)
+        ? !autoCollapsed
+        : autoCollapsed;
       if (collapsed) s.add(t.id);
     });
     return s;
@@ -358,7 +414,9 @@ export function TaskGraph({
   const visibleNodes = layoutNodes.filter(
     (n) => n.rowIndex < activeRow || revealStage === "node"
   );
-  const height = layoutNodes.length ? Math.max(...layoutNodes.map(bottomOf)) : 0;
+  const height = layoutNodes.length
+    ? Math.max(...layoutNodes.map(bottomOf))
+    : 0;
   const activeRowTop = nodes.find((n) => n.rowIndex === activeRow);
   const anchorY = activeRowTop ? topOf(activeRowTop) : height;
 
@@ -371,7 +429,13 @@ export function TaskGraph({
           reveal stage, so scrolling doesn't wait on the node itself. */}
       <div
         ref={anchorRef}
-        style={{ position: "absolute", left: 0, top: anchorY, width: 1, height: 1 }}
+        style={{
+          position: "absolute",
+          left: 0,
+          top: anchorY,
+          width: 1,
+          height: 1,
+        }}
       />
       <svg className="task-graph__edges" width={width} height={height}>
         {edgeTargetNodes.map((n) => {
@@ -379,6 +443,9 @@ export function TaskGraph({
             .map((id) => nodeById.get(id))
             .filter((s): s is PositionedTask => !!s);
           if (sources.length === 0) return null;
+          // A source's row is still resizing from a manual toggle — wait for
+          // its wave box to settle before this line reappears/redraws.
+          if (sources.some((s) => pendingEdgeRows.has(s.rowIndex))) return null;
 
           const tx = n.x + NODE_WIDTH / 2;
           const targetTop = topOf(n);
@@ -403,7 +470,11 @@ export function TaskGraph({
                 className={`task-edge task-edge--${stemStatus}`}
                 initial={{ pathLength: 0 }}
                 animate={{ pathLength: 1 }}
-                transition={{ duration: EDGE_DRAW_S, ease: "easeInOut", delay: EDGE_DRAW_S }}
+                transition={{
+                  duration: EDGE_DRAW_S,
+                  ease: "easeInOut",
+                  delay: EDGE_DRAW_S,
+                }}
               />
             </g>
           );
@@ -417,7 +488,11 @@ export function TaskGraph({
           layout
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ duration: 0.35, ease: "easeOut", layout: COLLAPSE_TRANSITION }}
+          transition={{
+            duration: 0.35,
+            ease: "easeOut",
+            layout: COLLAPSE_TRANSITION,
+          }}
           style={{
             left: w.x,
             top: w.y,
@@ -430,7 +505,11 @@ export function TaskGraph({
           {/* Needs its own `layout` for the same reason the task-node's
               children do: without it, the label visibly distorts while the
               wave box's own FLIP transform is resolving. */}
-          <motion.span layout className="wave-box__label" style={{ color: w.tint.label }}>
+          <motion.span
+            layout
+            className="wave-box__label"
+            style={{ color: w.tint.label }}
+          >
             Wave {w.waveNumber}
           </motion.span>
         </motion.div>
@@ -446,22 +525,26 @@ export function TaskGraph({
         // Waves behind the cursor have finished. The running one climbs in
         // lockstep with typing, so the whole processing time — not just a
         // burst at the end — is spent rising evenly to 100%.
-        const typedPct = rowChars ? Math.min(100, (typed / rowChars) * 100) : 100;
+        const typedPct = rowChars
+          ? Math.min(100, (typed / rowChars) * 100)
+          : 100;
         const progress = !isRunning
           ? { ...PROGRESS.done, pct: 100 }
           : phase === "hold"
-            ? { ...PROGRESS.done, pct: 100 }
-            : { ...PROGRESS.in_progress, pct: typedPct };
+          ? { ...PROGRESS.done, pct: 100 }
+          : { ...PROGRESS.in_progress, pct: typedPct };
 
         // 설명 types out first, then 출력 picks up where it left off.
         const description = n.description;
         const output = outputTextOf(n);
-        const shownDescription = isRunning ? description.slice(0, typed) : description;
+        const shownDescription = isRunning
+          ? description.slice(0, typed)
+          : description;
         const shownOutput = !isRunning
           ? output
           : typed > description.length
-            ? output.slice(0, typed - description.length)
-            : "";
+          ? output.slice(0, typed - description.length)
+          : "";
 
         return (
           <motion.button
@@ -477,7 +560,11 @@ export function TaskGraph({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             whileHover={{ y: -2 }}
-            transition={{ duration: 0.35, ease: "easeOut", layout: COLLAPSE_TRANSITION }}
+            transition={{
+              duration: 0.35,
+              ease: "easeOut",
+              layout: COLLAPSE_TRANSITION,
+            }}
             style={{ left: n.x, top: n.y, width: NODE_WIDTH, height: n.height }}
             onClick={() => {
               onSelect(n.id);
@@ -539,10 +626,16 @@ export function TaskGraph({
               <div className="task-node__track">
                 <div
                   className="task-node__fill"
-                  style={{ width: `${progress.pct}%`, background: progress.color }}
+                  style={{
+                    width: `${progress.pct}%`,
+                    background: progress.color,
+                  }}
                 />
               </div>
-              <span className="task-node__status" style={{ color: progress.color }}>
+              <span
+                className="task-node__status"
+                style={{ color: progress.color }}
+              >
                 {progress.text}
               </span>
             </motion.div>

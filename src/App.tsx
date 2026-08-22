@@ -132,6 +132,11 @@ function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [projectsOpen, setProjectsOpen] = useState(true);
   const [draft, setDraft] = useState("");
+  // Set the moment the user sends a message from the empty "New Chat" state.
+  // There's no real backend call behind it — it always plays the same demo
+  // run (DEMO_SESSION), with only the request bubble reflecting what they
+  // typed. Takes priority over any selected squad/session below.
+  const [mockRequest, setMockRequest] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const searchInputRef = useRef<HTMLInputElement | null>(null);
@@ -213,6 +218,7 @@ function App() {
   });
 
   const session: ActiveSession | null = useMemo(() => {
+    if (mockRequest !== null) return { ...DEMO_SESSION, request: mockRequest };
     if (isDemo) return selectedExecutionId ? DEMO_SESSION : null;
     const detail = sessionQuery.data;
     if (!detail) return null;
@@ -222,7 +228,7 @@ function App() {
       finalResult: detail.final_result,
       logs: toLogEntries(detail.timeline),
     };
-  }, [isDemo, selectedExecutionId, sessionQuery.data]);
+  }, [mockRequest, isDemo, selectedExecutionId, sessionQuery.data]);
 
   const isSessionLoading =
     !isDemo && !!selectedExecutionId && !session && sessionQuery.isLoading;
@@ -275,6 +281,7 @@ function App() {
   };
 
   const selectSession = (squadId: string, executionId: string) => {
+    setMockRequest(null);
     setSelectedSquadId(squadId);
     setSelectedExecutionId(executionId);
     setSelectedTaskId(null);
@@ -299,12 +306,17 @@ function App() {
   };
 
   const goHome = () => {
+    setMockRequest(null);
     setSelectedSquadId(null);
     setSelectedExecutionId(null);
   };
 
   const startChat = () => {
-    if (!draft.trim()) return;
+    const text = draft.trim();
+    if (!text) return;
+    setMockRequest(text);
+    setSelectedTaskId(null);
+    setGraphSequenceDone(false);
     setDraft("");
   };
 
@@ -584,20 +596,32 @@ function App() {
               </div>
 
               <TaskGraph
-                key={selectedExecutionId}
+                key={
+                  mockRequest !== null
+                    ? `mock:${mockRequest}`
+                    : selectedExecutionId
+                }
                 tasks={session.tasks}
                 selectedId={selectedTaskId}
                 onSelect={setSelectedTaskId}
                 onSequenceComplete={() => setGraphSequenceDone(true)}
               />
 
-              {session.finalResult && graphSequenceDone && (
-                <div className="chat-row chat-row--agent" ref={finalResultRef}>
-                  <div className="chat-msg chat-msg--agent">
-                    <TypewriterText text={session.finalResult} />
-                  </div>
-                </div>
-              )}
+              <AnimatePresence>
+                {session.finalResult && graphSequenceDone && (
+                  <motion.div
+                    className="chat-row chat-row--agent"
+                    ref={finalResultRef}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.35, ease: "easeOut" }}
+                  >
+                    <div className="chat-msg chat-msg--agent">
+                      <TypewriterText text={session.finalResult} />
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </div>
         ) : isSessionLoading ? (
