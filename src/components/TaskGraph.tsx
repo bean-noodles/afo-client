@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import type { Task, TaskStatus } from "../data/tasks";
 
@@ -219,6 +219,67 @@ function branchPath(sx: number, sy: number, tx: number, busY: number) {
     `Q ${sx} ${busY} ${sx + dir * CORNER} ${busY}`,
     `L ${tx} ${busY}`,
   ].join(" ");
+}
+
+interface ClampedTextProps {
+  text: string;
+  /** True once `text` is the finished value — a still-typing partial string
+   * would otherwise flash the 더보기 toggle before typing catches up. */
+  isFinal: boolean;
+  className: string;
+}
+
+/**
+ * A `.task-node__text` block that offers a 더보기/접기 toggle when its content
+ * overflows the CSS line-clamp. Expanding doesn't grow the card — the card's
+ * own height is fixed by `layout()` for positioning everything below it — it
+ * instead scrolls within `.task-node__sections`'s own flexed, capped space.
+ */
+function ClampedText({ text, isFinal, className }: ClampedTextProps) {
+  const ref = useRef<HTMLParagraphElement>(null);
+  const [overflowing, setOverflowing] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+
+  useLayoutEffect(() => {
+    if (!isFinal) {
+      setOverflowing(false);
+      return;
+    }
+    const el = ref.current;
+    if (!el) return;
+    setOverflowing(el.scrollHeight - el.clientHeight > 1);
+  }, [text, isFinal]);
+
+  const toggle = (e: React.SyntheticEvent) => {
+    // `.task-node` is itself a button — stop the click from also bubbling
+    // into its onClick (select/collapse) and toggle just this text block.
+    e.stopPropagation();
+    setExpanded((v) => !v);
+  };
+
+  return (
+    <>
+      <p ref={ref} className={`${className}${expanded ? " task-node__text--expanded" : ""}`}>
+        {text}
+      </p>
+      {overflowing && (
+        <span
+          role="button"
+          tabIndex={0}
+          className="task-node__more"
+          onClick={toggle}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              toggle(e);
+            }
+          }}
+        >
+          {expanded ? "접기" : "... 더보기"}
+        </span>
+      )}
+    </>
+  );
 }
 
 export function TaskGraph({
@@ -608,16 +669,20 @@ export function TaskGraph({
               >
                 <motion.div layout className="task-node__section">
                   <span className="task-node__label">설명</span>
-                  <p className="task-node__text task-node__text--desc">
-                    {shownDescription}
-                  </p>
+                  <ClampedText
+                    text={shownDescription}
+                    isFinal={!isRunning || typed >= description.length}
+                    className="task-node__text task-node__text--desc"
+                  />
                 </motion.div>
 
                 <motion.div layout className="task-node__section">
                   <span className="task-node__label">출력</span>
-                  <p className="task-node__text task-node__text--output">
-                    {shownOutput}
-                  </p>
+                  <ClampedText
+                    text={shownOutput}
+                    isFinal={!isRunning || typed >= description.length + output.length}
+                    className="task-node__text task-node__text--output"
+                  />
                 </motion.div>
               </motion.div>
             )}
