@@ -1,9 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { tasks as demoTasks, finalResult as demoFinalResult } from "./data/tasks";
+import { AnimatePresence, motion } from "framer-motion";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  tasks as demoTasks,
+  finalResult as demoFinalResult,
+} from "./data/tasks";
 import type { Task } from "./data/tasks";
 import { TaskGraph } from "./components/TaskGraph";
 import { AgentsTaskforcePanel } from "./components/AgentsTaskforcePanel";
 import { Login } from "./components/Login";
+import { SessionListSkeleton, TaskGraphSkeleton } from "./components/Skeleton";
+import { TypewriterText } from "./components/TypewriterText";
 import {
   ApiError,
   IS_API_CONFIGURED,
@@ -11,17 +18,16 @@ import {
   getSession,
   getSquad,
   listSquads,
+  uploadSquad,
 } from "./api";
 import { toLogEntries, toTasks } from "./adapters";
 import type { LogEntry } from "./adapters";
-import type { SquadDetail, SquadSummary, User } from "./types";
+import type { SquadSummary, User } from "./types";
 import writeIcon from "./assets/icons/icon-park-outline_write.svg";
 import folderIcon from "./assets/icons/folder.svg";
 import panelLeftIcon from "./assets/icons/panel-left.svg";
 import searchIcon from "./assets/icons/search.svg";
 import chevronDownIcon from "./assets/icons/chevron-down.svg";
-import moreHorizontalIcon from "./assets/icons/more-horizontal.svg";
-import plusIcon from "./assets/icons/plus.svg";
 import LogoutIcon from "./assets/icons/logout.svg";
 import uploadBoxIcon from "./assets/icons/upload-box.svg";
 import sendArrowIcon from "./assets/icons/send-arrow.svg";
@@ -80,6 +86,8 @@ const DEMO_SESSION: ActiveSession = {
   logs: demoLogs(),
 };
 
+const EMPTY_SQUADS: SquadSummary[] = [];
+
 const DEMO_SQUADS: SquadSummary[] = [
   {
     id: DEMO_SQUAD_ID,
@@ -101,17 +109,17 @@ function readTokenFromUrl(): string | null {
 }
 
 function App() {
+  const queryClient = useQueryClient();
   const [token, setToken] = useState<string | null>(
     () => readTokenFromUrl() ?? localStorage.getItem(TOKEN_KEY)
   );
-  const [user, setUser] = useState<User | null>(IS_API_CONFIGURED ? null : DEMO_USER);
-  const [squads, setSquads] = useState<SquadSummary[]>(
-    IS_API_CONFIGURED ? [] : DEMO_SQUADS
+  const [expandedSquadIds, setExpandedSquadIds] = useState<Set<string>>(
+    new Set()
   );
-  const [squadDetails, setSquadDetails] = useState<Record<string, SquadDetail>>({});
-  const [expandedSquadIds, setExpandedSquadIds] = useState<Set<string>>(new Set());
-  const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(null);
-  const [session, setSession] = useState<ActiveSession | null>(null);
+  const [selectedSquadId, setSelectedSquadId] = useState<string | null>(null);
+  const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(
+    null
+  );
   const [error, setError] = useState<string | null>(null);
 
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -126,6 +134,7 @@ function App() {
   const [draft, setDraft] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const squadFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const isDemo = !IS_API_CONFIGURED;
   const isAuthenticated = isDemo || Boolean(token);
@@ -145,82 +154,144 @@ function App() {
   // lands, bring it into view just like each wave did as it opened.
   useEffect(() => {
     if (graphSequenceDone) {
-      finalResultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      finalResultRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
     }
   }, [graphSequenceDone]);
 
   const handleLogout = useCallback(() => {
     setToken(null);
-    setUser(null);
-    setSquads([]);
-    setSquadDetails({});
     setExpandedSquadIds(new Set());
+    setSelectedSquadId(null);
     setSelectedExecutionId(null);
-    setSession(null);
-  }, []);
+    queryClient.clear();
+  }, [queryClient]);
 
-  // Current user + squad list, whenever we hold a token.
-  useEffect(() => {
-    if (isDemo || !token) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const [me, squadList] = await Promise.all([fetchMe(token), listSquads(token)]);
-        if (cancelled) return;
-        setUser(me);
-        setSquads(squadList);
-      } catch (err) {
-        if (cancelled) return;
-        if (err instanceof ApiError && err.status === 401) handleLogout();
-        else setError(err instanceof Error ? err.message : String(err));
-      }
-    })();
-    return () => {
-      cancelled = true;
+  const meQuery = useQuery({
+    queryKey: ["me"] as const,
+    queryFn: () => fetchMe(token!),
+    enabled: !isDemo && !!token,
+  });
+  const squadsQuery = useQuery({
+    queryKey: ["squads"] as const,
+    queryFn: () => listSquads(token!),
+    enabled: !isDemo && !!token,
+  });
+  const user: User | null = isDemo ? DEMO_USER : (meQuery.data ?? null);
+  // A stable fallback reference — `?? []` would otherwise be a fresh array
+  // every render, defeating the `useMemo`/`useQueries` below that key off it.
+  const squads: SquadSummary[] = isDemo ? DEMO_SQUADS : (squadsQuery.data ?? EMPTY_SQUADS);
+
+  const searchActive = searchQuery.trim().length > 0;
+
+  // One query per squad, fetched once it's expanded (manually, or forced
+  // open by an active search) — cached by squad id, so re-collapsing and
+  // re-expanding doesn't refetch.
+  const squadDetailQueries = useQueries({
+    queries: squads.map((squad) => ({
+      queryKey: ["squad", squad.id] as const,
+      queryFn: () => getSquad(token!, squad.id),
+      enabled: !isDemo && !!token && (expandedSquadIds.has(squad.id) || searchActive),
+    })),
+  });
+
+  const sessionQuery = useQuery({
+    queryKey: ["session", selectedSquadId, selectedExecutionId] as const,
+    queryFn: () => getSession(token!, selectedSquadId!, selectedExecutionId!),
+    enabled: !isDemo && !!token && !!selectedSquadId && !!selectedExecutionId,
+  });
+
+  const session: ActiveSession | null = useMemo(() => {
+    if (isDemo) return selectedExecutionId ? DEMO_SESSION : null;
+    const detail = sessionQuery.data;
+    if (!detail) return null;
+    return {
+      request: detail.request ?? detail.plan_title ?? "(제목 없음)",
+      tasks: toTasks(detail),
+      finalResult: detail.final_result,
+      logs: toLogEntries(detail.timeline),
     };
-  }, [token, isDemo, handleLogout]);
+  }, [isDemo, selectedExecutionId, sessionQuery.data]);
 
-  const toggleSquad = async (squadId: string) => {
+  const isSessionLoading =
+    !isDemo && !!selectedExecutionId && !session && sessionQuery.isLoading;
+
+  // Surface the first error across every in-flight query; an expired/invalid
+  // token bounces straight to logout instead of showing an error banner.
+  useEffect(() => {
+    if (isDemo) return;
+    const errors = [
+      meQuery.error,
+      squadsQuery.error,
+      sessionQuery.error,
+      ...squadDetailQueries.map((q) => q.error),
+    ].filter((e): e is Error => e != null);
+    const authError = errors.find((e) => e instanceof ApiError && e.status === 401);
+    if (authError) {
+      handleLogout();
+      return;
+    }
+    if (errors[0]) setError(errors[0].message);
+    // squadDetailQueries is a fresh array each render; its *contents*
+    // (each query's .error) are what matter, and those are covered by the
+    // other deps changing whenever an error actually appears/disappears.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDemo, meQuery.error, squadsQuery.error, sessionQuery.error, handleLogout]);
+
+  const uploadMutation = useMutation({
+    mutationFn: (file: File) => uploadSquad(token!, file),
+    onSuccess: ({ squad, warnings }) => {
+      void queryClient.invalidateQueries({ queryKey: ["squads"] });
+      setExpandedSquadIds((prev) => new Set(prev).add(squad.id));
+      if (warnings.length > 0) {
+        setError(
+          `'${squad.squad_name ?? squad.id}' 업로드 완료 (경고 ${
+            warnings.length
+          }건): ${warnings.join(", ")}`
+        );
+      }
+    },
+    onError: (err) => setError(err instanceof Error ? err.message : String(err)),
+  });
+
+  const toggleSquad = (squadId: string) => {
     setExpandedSquadIds((prev) => {
       const next = new Set(prev);
       if (next.has(squadId)) next.delete(squadId);
       else next.add(squadId);
       return next;
     });
-    if (isDemo || squadDetails[squadId] || !token) return;
-    try {
-      const detail = await getSquad(token, squadId);
-      setSquadDetails((prev) => ({ ...prev, [squadId]: detail }));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
   };
 
-  const selectSession = async (squadId: string, executionId: string) => {
+  const selectSession = (squadId: string, executionId: string) => {
+    setSelectedSquadId(squadId);
     setSelectedExecutionId(executionId);
+    setSelectedTaskId(null);
+  };
+
+  const handleNewSquadClick = () => {
     if (isDemo) {
-      setSession(DEMO_SESSION);
-      setSelectedTaskId(null);
+      setError(
+        "데모 모드에서는 스쿼드를 업로드할 수 없습니다. 백엔드 연결이 필요합니다."
+      );
       return;
     }
-    if (!token) return;
-    try {
-      const detail = await getSession(token, squadId, executionId);
-      setSession({
-        request: detail.request ?? detail.plan_title ?? "(제목 없음)",
-        tasks: toTasks(detail),
-        finalResult: detail.final_result,
-        logs: toLogEntries(detail.timeline),
-      });
-      setSelectedTaskId(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
+    squadFileInputRef.current?.click();
+  };
+
+  const handleSquadFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-selecting the same file later
+    if (!file || !token) return;
+    setError(null);
+    uploadMutation.mutate(file);
   };
 
   const goHome = () => {
+    setSelectedSquadId(null);
     setSelectedExecutionId(null);
-    setSession(null);
   };
 
   const startChat = () => {
@@ -238,10 +309,11 @@ function App() {
   /** Sidebar tree: squads with whatever sessions we've loaded for them. */
   const tree = useMemo(
     () =>
-      squads.map((squad) => {
+      squads.map((squad, i) => {
+        const detailQuery = squadDetailQueries[i];
         const sessions = isDemo
           ? [{ id: DEMO_EXECUTION_ID, label: DEMO_SESSION.request }]
-          : (squadDetails[squad.id]?.sessions ?? []).map((s) => ({
+          : (detailQuery?.data?.sessions ?? []).map((s) => ({
               id: s.execution_id,
               label: s.request ?? s.execution_id,
             }));
@@ -249,9 +321,10 @@ function App() {
           id: squad.id,
           name: squad.squad_name ?? squad.squad_id ?? squad.id,
           sessions,
+          isLoading: detailQuery?.isLoading ?? false,
         };
       }),
-    [squads, squadDetails, isDemo]
+    [squads, squadDetailQueries, isDemo]
   );
 
   const query = searchQuery.trim().toLowerCase();
@@ -259,23 +332,21 @@ function App() {
     ? tree
         .map((squad) => ({
           ...squad,
-          sessions: squad.sessions.filter((s) => s.label.toLowerCase().includes(query)),
+          sessions: squad.sessions.filter((s) =>
+            s.label.toLowerCase().includes(query)
+          ),
         }))
-        .filter((s) => s.name.toLowerCase().includes(query) || s.sessions.length > 0)
+        .filter(
+          (s) => s.name.toLowerCase().includes(query) || s.sessions.length > 0
+        )
     : tree;
-
-  const graphSelectedId =
-    selectedTaskId ??
-    session?.tasks.find((t) => t.status === "in_progress")?.id ??
-    session?.tasks[0]?.id ??
-    null;
 
   if (!isAuthenticated) {
     return (
       <Login
         onLoggedIn={(newToken, newUser) => {
+          queryClient.setQueryData(["me"], newUser);
           setToken(newToken);
-          setUser(newUser);
         }}
       />
     );
@@ -336,35 +407,41 @@ function App() {
             <img src={writeIcon} alt="" width={16} height={16} />
             New Chat
           </button>
-          <button className="new-record">
+          <button
+            className="new-record"
+            onClick={handleNewSquadClick}
+            disabled={uploadMutation.isPending}
+          >
             <img src={folderIcon} alt="" width={16} height={16} />
-            New Squad
+            {uploadMutation.isPending ? "업로드 중..." : "New Squad"}
           </button>
+          <input
+            ref={squadFileInputRef}
+            type="file"
+            accept=".zip"
+            onChange={handleSquadFileChange}
+            style={{ display: "none" }}
+          />
         </div>
         <div className="sidebar__chats">
           <div className="sidebar__projects-header">
+            <span className="sidebar__projects-label">Projects</span>
             <button
               type="button"
-              className="sidebar__projects-toggle"
+              className="sidebar__icon-btn"
               onClick={() => setProjectsOpen((v) => !v)}
+              aria-label={projectsOpen ? "프로젝트 목록 접기" : "프로젝트 목록 펼치기"}
             >
-              Projects
               <img
                 src={chevronDownIcon}
                 alt=""
                 width={12}
                 height={12}
-                className={`sidebar__chevron${projectsOpen ? "" : " is-collapsed"}`}
+                className={`sidebar__chevron${
+                  projectsOpen ? "" : " is-collapsed"
+                }`}
               />
             </button>
-            <div className="sidebar__projects-actions">
-              <button className="sidebar__icon-btn" aria-label="더보기">
-                <img src={moreHorizontalIcon} alt="" width={16} height={16} />
-              </button>
-              <button className="sidebar__icon-btn" aria-label="프로젝트 추가">
-                <img src={plusIcon} alt="" width={14} height={14} />
-              </button>
-            </div>
           </div>
           {projectsOpen && filteredTree.length === 0 && (
             <p className="sidebar__search-empty">
@@ -379,7 +456,7 @@ function App() {
                   <button
                     type="button"
                     className="project-group__header"
-                    onClick={() => void toggleSquad(squad.id)}
+                    onClick={() => toggleSquad(squad.id)}
                   >
                     <img src={folderIcon} alt="" width={14} height={14} />
                     {squad.name}
@@ -388,25 +465,50 @@ function App() {
                       alt=""
                       width={10}
                       height={10}
-                      className={`sidebar__chevron${isExpanded ? "" : " is-collapsed"}`}
+                      className={`sidebar__chevron${
+                        isExpanded ? "" : " is-collapsed"
+                      }`}
                       style={{ marginLeft: "auto" }}
                     />
                   </button>
-                  {isExpanded && (
-                    <div className="project-group__items">
-                      {squad.sessions.map((item) => (
-                        <div
-                          key={item.id}
-                          className={`chat-item${
-                            item.id === selectedExecutionId ? " chat-item--active" : ""
-                          }`}
-                          onClick={() => void selectSession(squad.id, item.id)}
-                        >
-                          {item.label}
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  <AnimatePresence initial={false}>
+                    {isExpanded && (
+                      <motion.div
+                        key="reveal"
+                        className="project-group__reveal"
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
+                      >
+                        {squad.isLoading && squad.sessions.length === 0 ? (
+                          <SessionListSkeleton />
+                        ) : (
+                          <div className="project-group__items">
+                            {squad.sessions.map((item, i) => (
+                              <motion.div
+                                key={item.id}
+                                className={`chat-item${
+                                  item.id === selectedExecutionId
+                                    ? " chat-item--active"
+                                    : ""
+                                }`}
+                                initial={{ opacity: 0, y: -4 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{
+                                  duration: 0.18,
+                                  delay: Math.min(i, 6) * 0.03,
+                                }}
+                                onClick={() => selectSession(squad.id, item.id)}
+                              >
+                                {item.label}
+                              </motion.div>
+                            ))}
+                          </div>
+                        )}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               );
             })}
@@ -433,22 +535,32 @@ function App() {
           <div className="canvas-scroll">
             <div className="canvas-stack">
               <div className="chat-row chat-row--user">
-                <div className="chat-msg chat-msg--user">{session.request}</div>
+                <div className="chat-msg chat-msg--user">
+                  <TypewriterText text={session.request} />
+                </div>
               </div>
 
               <TaskGraph
                 key={selectedExecutionId}
                 tasks={session.tasks}
-                selectedId={graphSelectedId}
+                selectedId={selectedTaskId}
                 onSelect={setSelectedTaskId}
                 onSequenceComplete={() => setGraphSequenceDone(true)}
               />
 
               {session.finalResult && graphSequenceDone && (
                 <div className="chat-row chat-row--agent" ref={finalResultRef}>
-                  <div className="chat-msg chat-msg--agent">{session.finalResult}</div>
+                  <div className="chat-msg chat-msg--agent">
+                    <TypewriterText text={session.finalResult} />
+                  </div>
                 </div>
               )}
+            </div>
+          </div>
+        ) : isSessionLoading ? (
+          <div className="canvas-scroll">
+            <div className="canvas-stack">
+              <TaskGraphSkeleton />
             </div>
           </div>
         ) : (

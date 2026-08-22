@@ -229,6 +229,12 @@
   background: rgba(255, 255, 255, 0.05);
 }
 
+.new-chat:disabled,
+.new-record:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .sidebar__projects-header {
   display: flex;
   align-items: center;
@@ -237,17 +243,10 @@
   margin: 12px 0 0;
 }
 
-.sidebar__projects-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  border: none;
-  background: none;
-  padding: 0;
+.sidebar__projects-label {
   font-size: 14px;
   font-weight: 500;
   color: #b7b3c2;
-  cursor: pointer;
 }
 
 .sidebar__chevron {
@@ -256,12 +255,6 @@
 
 .sidebar__chevron.is-collapsed {
   transform: rotate(-90deg);
-}
-
-.sidebar__projects-actions {
-  display: flex;
-  align-items: center;
-  gap: 0;
 }
 
 .project-group {
@@ -286,6 +279,10 @@
 
 .project-group__header:hover {
   background: rgba(255, 255, 255, 0.05);
+}
+
+.project-group__reveal {
+  overflow: hidden;
 }
 
 .project-group__items {
@@ -313,6 +310,16 @@
 .chat-item--active {
   background: rgba(170, 59, 255, 0.15);
   color: #e8e6ef;
+}
+
+.chat-item--skeleton {
+  cursor: default;
+  display: flex;
+  align-items: center;
+}
+
+.chat-item--skeleton:hover {
+  background: none;
 }
 
 /* ---------- Main stage ---------- */
@@ -656,6 +663,10 @@
   word-break: break-word;
 }
 
+.log-entry__text--wave {
+  color: #00d25e;
+}
+
 /* ---------- Login ---------- */
 
 .login {
@@ -862,4 +873,61 @@
   flex-direction: column;
   gap: 10px;
   overflow-y: auto;
+}
+
+/* ---------- Loading skeletons ---------- */
+
+.skeleton {
+  border-radius: 8px;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.05) 25%,
+    rgba(255, 255, 255, 0.11) 37%,
+    rgba(255, 255, 255, 0.05) 63%
+  );
+  background-size: 400% 100%;
+  animation: skeleton-shimmer 1.4s ease infinite;
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0 50%;
+  }
+}
+
+.task-graph-skeleton {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 32px;
+  width: 100%;
+  max-width: 640px;
+  padding-top: 8px;
+}
+
+.task-graph-skeleton__wave {
+  display: flex;
+  gap: 24px;
+  width: 100%;
+}
+
+.task-graph-skeleton__node {
+  flex: 1;
+  height: 160px;
+  border-radius: 18px;
+}
+
+.task-graph-skeleton__node--single {
+  flex: none;
+  width: 60%;
+  height: 100px;
+}
+
+.task-graph-skeleton__connector {
+  width: 2px;
+  height: 28px;
+  background: rgba(255, 255, 255, 0.12);
 }
