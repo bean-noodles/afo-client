@@ -36,10 +36,10 @@ const PROGRESS: Record<TaskStatus, { pct: number; text: string; color: string }>
 
 /** Wave box accent, cycled by wave index. */
 const WAVE_TINTS = [
-  { border: "rgba(45, 217, 163, 0.35)", bg: "rgba(45, 217, 163, 0.06)", label: "#2dd9a3" },
-  { border: "rgba(140, 122, 255, 0.35)", bg: "rgba(140, 122, 255, 0.07)", label: "#a99bff" },
-  { border: "rgba(240, 148, 51, 0.35)", bg: "rgba(240, 148, 51, 0.06)", label: "#f0a447" },
-  { border: "rgba(96, 165, 250, 0.35)", bg: "rgba(96, 165, 250, 0.06)", label: "#7dbaff" },
+  { border: "rgba(45, 217, 163, 0.35)", bg: "rgba(45, 217, 163, 0.16)", label: "#2dd9a3" },
+  { border: "rgba(140, 122, 255, 0.35)", bg: "rgba(140, 122, 255, 0.17)", label: "#a99bff" },
+  { border: "rgba(240, 148, 51, 0.35)", bg: "rgba(240, 148, 51, 0.16)", label: "#f0a447" },
+  { border: "rgba(96, 165, 250, 0.35)", bg: "rgba(96, 165, 250, 0.16)", label: "#7dbaff" },
 ];
 
 interface PositionedTask extends Task {

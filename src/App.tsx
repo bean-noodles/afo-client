@@ -77,14 +77,21 @@ function App() {
   const [selectedId, setSelectedId] = useState(defaultSelected);
   const [activeChat, setActiveChat] = useState<string | null>("Astropy 리서치");
   const [activeItemId, setActiveItemId] = useState<string | null>(null);
-  const [panelOpen, setPanelOpen] = useState(true);
+  const [panelOpen, setPanelOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [projectsOpen, setProjectsOpen] = useState(true);
   const [collapsedProjectIds, setCollapsedProjectIds] = useState<Set<string>>(
     new Set()
   );
   const [draft, setDraft] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const logs = useMemo(buildLogs, []);
+
+  const goHome = () => {
+    setActiveChat(null);
+    setActiveItemId(null);
+  };
 
   const startChat = () => {
     if (!draft.trim()) return;
@@ -92,6 +99,26 @@ function App() {
     setActiveItemId(null);
     setDraft("");
   };
+
+  const toggleSearch = () => {
+    setSearchOpen((v) => {
+      if (v) setSearchQuery("");
+      return !v;
+    });
+  };
+
+  const query = searchQuery.trim().toLowerCase();
+  const filteredProjects = query
+    ? PROJECTS.map((project) => ({
+        ...project,
+        items: project.items.filter((item) =>
+          item.label.toLowerCase().includes(query)
+        ),
+      })).filter(
+        (project) =>
+          project.name.toLowerCase().includes(query) || project.items.length > 0
+      )
+    : PROJECTS;
 
   const selectItem = (id: string, label: string) => {
     setActiveItemId(id);
@@ -127,9 +154,20 @@ function App() {
       <aside className="sidebar sidebar--left">
         <div className="sidebar__top">
           <div className="sidebar__brand-row">
-            <span className="sidebar__brand">AFO</span>
+            <button
+              type="button"
+              className="sidebar__brand"
+              onClick={goHome}
+              aria-label="메인 화면으로 이동"
+            >
+              AFO
+            </button>
             <div className="sidebar__brand-actions">
-              <button className="sidebar__icon-btn" aria-label="검색">
+              <button
+                className={`sidebar__icon-btn${searchOpen ? " is-active" : ""}`}
+                onClick={toggleSearch}
+                aria-label="검색"
+              >
                 <img src={searchIcon} alt="" width={22} height={22} />
               </button>
               <button
@@ -141,6 +179,16 @@ function App() {
               </button>
             </div>
           </div>
+          {searchOpen && (
+            <input
+              className="sidebar__search"
+              type="text"
+              placeholder="검색"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              autoFocus
+            />
+          )}
           <button
             className="new-chat"
             onClick={() => {
@@ -183,9 +231,14 @@ function App() {
               </button>
             </div>
           </div>
+          {projectsOpen && query && filteredProjects.length === 0 && (
+            <p className="sidebar__search-empty">검색 결과가 없습니다.</p>
+          )}
           {projectsOpen &&
-            PROJECTS.map((project) => {
-              const isCollapsed = collapsedProjectIds.has(project.id);
+            filteredProjects.map((project) => {
+              const isCollapsed = query
+                ? false
+                : collapsedProjectIds.has(project.id);
               return (
                 <div key={project.id} className="project-group">
                   <button

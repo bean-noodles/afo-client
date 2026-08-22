@@ -84,9 +84,18 @@
 }
 
 .sidebar__brand {
+  border: none;
+  background: none;
+  padding: 0;
   font-weight: 700;
   font-size: 18px;
   letter-spacing: 0.02em;
+  color: #e8e6ef;
+  cursor: pointer;
+}
+
+.sidebar__brand:hover {
+  opacity: 0.8;
 }
 
 .sidebar__brand-actions {
@@ -110,6 +119,35 @@
 .sidebar__icon-btn:hover {
   background: rgba(255, 255, 255, 0.06);
   opacity: 1;
+}
+
+.sidebar__icon-btn.is-active {
+  background: rgba(255, 255, 255, 0.1);
+  opacity: 1;
+}
+
+.sidebar__search {
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: #e8e6ef;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+}
+
+.sidebar__search::placeholder {
+  color: #6b6673;
+}
+
+.sidebar__search-empty {
+  padding: 8px 10px;
+  font-size: 13px;
+  color: #6b6673;
+  margin: 0;
 }
 
 .sidebar__chats {
@@ -447,20 +485,11 @@
   letter-spacing: 0.02em;
 }
 
-.task-edge--pending {
-  color: rgba(255, 255, 255, 0.15);
-}
-
-.task-edge--in_progress {
-  color: rgba(192, 132, 252, 0.5);
-}
-
-.task-edge--done {
-  color: rgba(110, 231, 183, 0.4);
-}
-
+.task-edge--pending,
+.task-edge--in_progress,
+.task-edge--done,
 .task-edge--failed {
-  color: rgba(248, 113, 113, 0.5);
+  color: rgba(255, 255, 255, 0.28);
 }
 
 .task-node {
