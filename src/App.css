@@ -330,8 +330,15 @@
   line-height: 16px;
   color: #cfcbd9;
   cursor: pointer;
-  /* A long session title would otherwise wrap unbounded and push the rest of
-     the list out of view — cap it at two lines and ellipsize the rest. */
+}
+
+/* A long session title would otherwise wrap unbounded and push the rest of
+   the list out of view — cap it at two lines and ellipsize the rest.
+   The clamp has to sit on this inner box rather than on .chat-item itself:
+   -webkit-line-clamp draws the ellipsis but keeps the following line boxes
+   around, and overflow:hidden clips at the *padding* edge — so with padding
+   here the top of line 3 stays visible in the bottom padding strip. */
+.chat-item__label {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;

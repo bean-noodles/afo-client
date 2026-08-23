@@ -554,8 +554,11 @@ function App() {
                                 onClick={() =>
                                   selectSession(squad.id, item.id)
                                 }
+                                title={item.label}
                               >
-                                {item.label}
+                                <span className="chat-item__label">
+                                  {item.label}
+                                </span>
                               </motion.div>
                             ))}
                           </div>
