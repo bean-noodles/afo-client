@@ -330,6 +330,14 @@
   line-height: 16px;
   color: #cfcbd9;
   cursor: pointer;
+  /* A long session title would otherwise wrap unbounded and push the rest of
+     the list out of view — cap it at two lines and ellipsize the rest. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
 }
 
 .chat-item:hover {
