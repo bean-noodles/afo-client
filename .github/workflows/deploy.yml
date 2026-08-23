@@ -16,9 +16,6 @@ concurrency:
 
 jobs:
   build:
-    env:
-      VITE_API_BASE_URLL: https://afo-api.vercel.app
-      VITE_GOOGLE_CLIENT_ID: 501329673998-4qfij32efrq6l2vs0gs779g4aqtqcass.apps.googleusercontent.com
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
